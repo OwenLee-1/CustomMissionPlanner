@@ -504,6 +504,7 @@ namespace MissionPlanner.GCSViews
             InitializeComponent();
             MoveMapControlsAboveTuning();
             Add3DMapCheckbox();
+            MAVLinkInterface.ArmGuard = () => missionChecklistControl.ArmingChecksPassed;
 
             log.Info("Components Done");
 
@@ -1287,7 +1288,7 @@ namespace MissionPlanner.GCSViews
 
             TabListDisplay.Add(tabParams.Name, MainV2.DisplayConfiguration.displayParamsTab);
 
-            TabListDisplay.Add(tabVideo.Name, MainV2.DisplayConfiguration.displayVideoTab);
+            TabListDisplay.Add(tabMissionChecklist.Name, true);
 
             TabListDisplay.Add(tabTuning.Name, MainV2.DisplayConfiguration.displayTuningTab);
 
@@ -1636,6 +1637,14 @@ namespace MissionPlanner.GCSViews
             {
                 var isitarmed = MainV2.comPort.MAV.cs.armed;
                 var action = MainV2.comPort.MAV.cs.armed ? "Disarm" : "Arm";
+
+                if (!isitarmed && !missionChecklistControl.ArmingChecksPassed)
+                {
+                    CustomMessageBox.Show(
+                        "PIC and GCO final verification must both be completed before arming.",
+                        "Arming blocked");
+                    return;
+                }
 
                 if (isitarmed)
                     if (CustomMessageBox.Show("Are you sure you want to " + action, action,

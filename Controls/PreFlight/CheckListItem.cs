@@ -13,6 +13,10 @@ namespace MissionPlanner.Controls.PreFlight
         // for nested conditions
         public CheckListItem Child = null;
 
+        public bool ManualChecked { get; set; }
+
+        public bool IsArmingBlocker { get; set; }
+
         // colour to use for text when the condition is true
         internal Color _TrueColor { get; set; }
         public string TrueColor { get { return _TrueColor.Name; } set { _TrueColor = Color.FromName(value); } }
@@ -309,8 +313,7 @@ namespace MissionPlanner.Controls.PreFlight
                         return true;
                     break;
                 case Conditional.NONE:
-
-                    break;
+                    return item.ManualChecked;
             }
 
             return false;

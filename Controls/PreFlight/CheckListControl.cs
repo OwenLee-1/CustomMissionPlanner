@@ -11,9 +11,28 @@ namespace MissionPlanner.Controls.PreFlight
     {
         public List<CheckListItem> CheckListItems = new List<CheckListItem>();
 
-        public string configfile = Settings.GetUserDataDirectory() + "checklist.xml";
+        public string configfile;
 
-        public string configfiledefault = Settings.GetRunningDirectory() + "checklistDefault.xml";
+        public string configfiledefault;
+
+        public bool ArmingChecksPassed
+        {
+            get
+            {
+                lock (CheckListItems)
+                {
+                    try
+                    {
+                        return CheckListItems.Where(item => item.IsArmingBlocker)
+                            .All(item => item.checkCond(item));
+                    }
+                    catch
+                    {
+                        return false;
+                    }
+                }
+            }
+        }
 
         int rowcount = 0;
 
@@ -37,7 +56,15 @@ namespace MissionPlanner.Controls.PreFlight
 
 
         public CheckListControl()
+            : this(Settings.GetUserDataDirectory() + "checklist.xml",
+                Settings.GetRunningDirectory() + "checklistDefault.xml")
         {
+        }
+
+        public CheckListControl(string configfile, string configfiledefault)
+        {
+            this.configfile = configfile;
+            this.configfiledefault = configfiledefault;
             InitializeComponent();
 
             try
@@ -137,6 +164,14 @@ namespace MissionPlanner.Controls.PreFlight
             desc = new Label() { Text = desctext, Location = new Point(5, 9), Size = new Size(x1, height), Name = "udesc" + y };
             text = new Label() { Text = texttext, Location = new Point(desc.Right, 9), Size = new Size(x2, height), Name = "utext" + y };
             tickbox = new CheckBox() { Checked = item.checkCond(item), Location = new Point((text.Right), 7), Size = new Size(21, 21), Name = "utickbox" + y };
+            tickbox.CheckedChanged += (sender, args) =>
+            {
+                if (item.ConditionType == CheckListItem.Conditional.NONE)
+                {
+                    item.ManualChecked = tickbox.Checked;
+                    SaveConfig();
+                }
+            };
 
             desc.Tag = text.Tag = tickbox.Tag = new internaldata { CLItem = item, desc = desc, text = text, tickbox = tickbox };
 

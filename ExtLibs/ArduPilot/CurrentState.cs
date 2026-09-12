@@ -206,6 +206,8 @@ namespace MissionPlanner
         public short rcoverridech9; //{ get; set; }
 
         public Mavlink_Sensors sensors_enabled = new Mavlink_Sensors();
+
+        public bool blackbox_logging => sensors_enabled.logging;
         public Mavlink_Sensors sensors_health = new Mavlink_Sensors();
         public Mavlink_Sensors sensors_present = new Mavlink_Sensors();
 

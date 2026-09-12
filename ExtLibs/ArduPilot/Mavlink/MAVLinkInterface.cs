@@ -27,6 +27,7 @@ namespace MissionPlanner
     public class MAVLinkInterface : MAVLink, IDisposable, IMAVLinkInterface, IMAVLinkInterfaceLogRead
     {
         private static readonly ILog log = LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
+        public static Func<bool> ArmGuard { get; set; }
         private ICommsSerial _baseStream;
 
         public ICommsSerial BaseStream
@@ -2656,6 +2657,9 @@ Mission Planner waits for 2 valid heartbeat packets before connecting
         {
             const float magic_force_arm_value = 2989.0f;
             const float magic_force_disarm_value = 21196.0f;
+
+            if (armit && ArmGuard != null && !ArmGuard())
+                return false;
 
             if (force)
             {
