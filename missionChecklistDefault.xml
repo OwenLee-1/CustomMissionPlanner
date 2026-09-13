@@ -30,7 +30,7 @@
 	<CheckListItem>
 		<TrueColor>White</TrueColor>
 		<FalseColor>White</FalseColor>
-		<Description>Motor spin direction is correct?</Description>
+		<Description>Verify motor spin direction</Description>
 		<Text />
 		<TriggerValue>0</TriggerValue>
 		<Name>roll</Name>
@@ -40,7 +40,7 @@
 	<CheckListItem>
 		<TrueColor>White</TrueColor>
 		<FalseColor>White</FalseColor>
-		<Description>RemoteID is installed correctly?</Description>
+		<Description>Verify Remote ID installation and connection</Description>
 		<Text />
 		<TriggerValue>0</TriggerValue>
 		<Name>roll</Name>
@@ -50,7 +50,7 @@
 	<CheckListItem>
 		<TrueColor>White</TrueColor>
 		<FalseColor>White</FalseColor>
-		<Description>All fasteners are installed and tightened to torque specs</Description>
+		<Description>Verify all fasteners are installed and torqued</Description>
 		<Text />
 		<TriggerValue>0</TriggerValue>
 		<Name>roll</Name>
@@ -60,7 +60,7 @@
 	<CheckListItem>
 		<TrueColor>White</TrueColor>
 		<FalseColor>White</FalseColor>
-		<Description>Battery stoppers are installed</Description>
+		<Description>Verify battery restraints are installed</Description>
 		<Text />
 		<TriggerValue>0</TriggerValue>
 		<Name>roll</Name>
@@ -70,7 +70,7 @@
 	<CheckListItem>
 		<TrueColor>White</TrueColor>
 		<FalseColor>White</FalseColor>
-		<Description>Shake test completed</Description>
+		<Description>Complete and pass the shake test</Description>
 		<Text />
 		<TriggerValue>0</TriggerValue>
 		<Name>roll</Name>
@@ -80,7 +80,7 @@
 	<CheckListItem>
 		<TrueColor>White</TrueColor>
 		<FalseColor>White</FalseColor>
-		<Description>Props are installed correctly</Description>
+		<Description>Verify propellers are installed and secured</Description>
 		<Text />
 		<TriggerValue>0</TriggerValue>
 		<Name>roll</Name>
@@ -90,7 +90,7 @@
 	<CheckListItem>
 		<TrueColor>White</TrueColor>
 		<FalseColor>Red</FalseColor>
-		<Description>PIC final manual verification completed</Description>
+		<Description>PIC final inspection complete</Description>
 		<Text>Required before arming</Text>
 		<TriggerValue>0</TriggerValue>
 		<Name>roll</Name>
@@ -100,7 +100,7 @@
 	<CheckListItem>
 		<TrueColor>White</TrueColor>
 		<FalseColor>Red</FalseColor>
-		<Description>GCO final manual verification completed</Description>
+		<Description>GCO final inspection complete</Description>
 		<Text>Required before arming</Text>
 		<TriggerValue>0</TriggerValue>
 		<Name>roll</Name>

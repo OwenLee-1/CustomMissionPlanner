@@ -24,15 +24,15 @@ This fork implements every feature we've always yearned for with considerable UI
 
 ### Windows (Recommended)
 
-Grab the latest installer from [Releases](https://github.com/Titan-Dynamics/TitanPlanner/releases/latest). The app will notify you on updates from then on.
+Install the latest VFS Planner build supplied by your deployment team. The app will notify you about updates when configured.
 
 ### Building from Source
 
 Requires Visual Studio 2022.
 
 ```bash
-git clone https://github.com/Titan-Dynamics/TitanPlanner.git
-cd TitanPlanner
+git clone <your-vfs-planner-repository-url>
+cd CustomMissionPlanner
 git submodule update --init
 ```
 

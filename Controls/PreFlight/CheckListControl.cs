@@ -5,6 +5,7 @@ using System.Linq;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
+using System.Linq;
 using System.Windows.Forms;
 
 namespace MissionPlanner.Controls.PreFlight
@@ -104,7 +105,10 @@ namespace MissionPlanner.Controls.PreFlight
                 checkboxes.Clear();
                 statusIndicators.Clear();
                 bool? automaticSection = null;
-                foreach (var item in this.CheckListItems)
+                var orderedItems = this.CheckListItems
+                    .Where(item => item.ConditionType != CheckListItem.Conditional.NONE)
+                    .Concat(this.CheckListItems.Where(item => item.ConditionType == CheckListItem.Conditional.NONE));
+                foreach (var item in orderedItems)
                 {
                     bool isAutomatic = item.ConditionType != CheckListItem.Conditional.NONE;
                     if (automaticSection != isAutomatic)
@@ -264,7 +268,7 @@ namespace MissionPlanner.Controls.PreFlight
             descLabels.Add(desc);
             labels.Add(text);
             checkboxes.Add(tickbox);
-                statusIndicators.Add(statusIndicator);
+            statusIndicators.Add(statusIndicator);
 
             y = gb.Bottom;
 

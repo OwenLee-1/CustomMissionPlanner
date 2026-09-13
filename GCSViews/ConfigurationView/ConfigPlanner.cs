@@ -286,32 +286,8 @@ namespace MissionPlanner.GCSViews.ConfigurationView
             btnBetaUpdate.Click += BtnBetaUpdate_Click;
             table.Controls.Add(btnBetaUpdate, 0, 1);
 
-            var lnkReleases = new LinkLabel
-            {
-                Text = "Manual downloads (GitHub releases)",
-                AutoSize = true,
-                Margin = new Padding(3, 6, 3, 3)
-            };
-            lnkReleases.LinkClicked += LnkReleases_LinkClicked;
-            table.Controls.Add(lnkReleases, 0, 2);
-
             group.Controls.Add(table);
             return group;
-        }
-
-        private void LnkReleases_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
-        {
-            try
-            {
-                Process.Start(new ProcessStartInfo("https://github.com/Titan-Dynamics/TitanPlanner/releases")
-                {
-                    UseShellExecute = true
-                });
-            }
-            catch (Exception ex)
-            {
-                CustomMessageBox.Show(ex.ToString(), Strings.ERROR);
-            }
         }
 
         private void BtnCheckUpdate_Click(object sender, EventArgs e)

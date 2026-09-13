@@ -155,10 +155,10 @@ namespace MissionPlanner
 
         private static void HandleTDEditionUpgrade()
         {
-            // Check for Titan Dynamics edition - if not set, this is a new install or upgrade from original Mission Planner
+            // Check for the VFS Planner edition - if not set, this is a new install or upgrade from original Mission Planner
             if (Settings.Instance["td_edition"] == null)
             {
-                // Set Titan Dynamics default theme
+                // Set the VFS Planner default theme
                 Settings.Instance["theme"] = "titandynamics.mpsystheme";
 
                 // Show tabs by default

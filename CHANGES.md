@@ -1,21 +1,21 @@
-# Mission Planner - Titan Dynamics Edition - Change Summary
+# VFS Planner Change Summary
 
 A high-level summary of changes in this fork compared to upstream [ArduPilot/MissionPlanner](https://github.com/ArduPilot/MissionPlanner). For a chronological list of every individual change, see `ChangeLog.txt` (which still tracks upstream changes) and the project's git history.
 
-This document covers the **385 commits** unique to the TitanPlanner fork.
+This document covers the custom changes in the VFS Planner fork.
 
 ---
 
 # Branding & Theming
 
-## Titan Dynamics System Theme
-A new bundled theme (`titandynamics.mpsystheme`) is set as the default for new installs. Theme application has been extended to controls upstream did not theme — `ListBox`, `PropertyGrid`, `MessagesList`, status tab, menu-bar icons, the Splash form, and toast notifications.
+## VFS Planner System Theme
+A bundled theme is set as the default for new installs. Theme application has been extended to controls upstream did not theme — `ListBox`, `PropertyGrid`, `MessagesList`, status tab, menu-bar icons, the Splash form, and toast notifications.
 
 ## Dark Windows Title Bars
 Native Windows title bars now follow the application theme rather than always being light.
 
 ## New Application Icon, Splash, and Tab Icons
-A new app icon (Titan Dynamics branding), redesigned splash screen, and a fresh icon set for the main top-level tabs in both dark and light variants.
+A new VFS app icon, redesigned splash screen, and a fresh icon set for the main top-level tabs in both dark and light variants.
 
 ## Plane & Copter Default Icons
 Tornado and Proton aircraft are the default rendered icons for plane and copter vehicle classes. Users can also drop in a custom aircraft icon image to override per-vehicle defaults entirely.
@@ -251,10 +251,10 @@ WPOverlay2 + new mission rendering pipeline, MissionStyleEditor, `MissionSegment
 ## CI Workflow
 GitHub Actions builds Release and Debug, packages an MSI and zip, computes `checksums.txt` and `version.txt`, and publishes:
 - A **`development-build`** prerelease on every push to `development`
-- A **`TitanPlanner-<version>`** stable release on every push to `master`
+- A stable VFS Planner release on every push to `master`
 
 ## In-App Updater
-Reads `version.txt` from the channel URL (stable or beta) and compares as `System.Version`. On a positive match, streams the differing files directly out of the release zip (`TitanPlanner.zip`) using HTTP range requests, validates each file's MD5 against `checksums.txt`, then hands off to `Updater.exe` for the in-place swap.
+Reads `version.txt` from the configured update channel and compares as `System.Version`. On a positive match, streams the differing files directly out of the release package, validates each file's MD5 against `checksums.txt`, then hands off to `Updater.exe` for the in-place swap.
 
 ## Recent Fixes
 - Production channel was passing the directory base URL into `CheckMD5`, causing per-file 404s; it now correctly streams from the release zip exactly as the dev channel does.
@@ -270,7 +270,7 @@ Reads `version.txt` from the channel URL (stable or beta) and compares as `Syste
 - Reorganized Actions tab as a flow layout with payload controls merged in
 - Revamped Telemetry Log tab
 - Logs tab combining Dataflash + Telemetry views
-- Custom upgrade-path logic so existing original Mission Planner users transition cleanly to the Titan Dynamics edition (theme, default tab visibility, settings migration)
+- Custom upgrade-path logic so existing original Mission Planner users transition cleanly to the VFS Planner edition (theme, default tab visibility, settings migration)
 - Windows console terminal removed from the main exe
 
 ---

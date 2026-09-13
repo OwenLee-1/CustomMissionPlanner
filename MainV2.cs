@@ -1159,7 +1159,9 @@ namespace MissionPlanner
             var logoImage = ThemeManager.IsDarkTheme
                 ? Properties.Resources.TD_MP
                 : Properties.Resources.TD_MP_light;
-            MenuArduPilot.Image = new Bitmap(logoImage, (int)(200), 31);
+            var logoWidth = 120;
+            var logoHeight = Math.Max(1, (int)Math.Round(logoImage.Height * logoWidth / (double)logoImage.Width));
+            MenuArduPilot.Image = new Bitmap(logoImage, logoWidth, logoHeight);
             MenuArduPilot.Width = MenuArduPilot.Image.Width;
 
             Application.DoEvents();
@@ -4978,14 +4980,7 @@ namespace MissionPlanner
 
         private void MenuArduPilot_Click(object sender, EventArgs e)
         {
-            try
-            {
-                System.Diagnostics.Process.Start("https://titandynamics.aero");
-            }
-            catch
-            {
-                CustomMessageBox.Show("Failed to open url");
-            }
+            return;
         }
 
         private void connectionListToolStripMenuItem_Click(object sender, EventArgs e)
