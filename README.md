@@ -1,4 +1,4 @@
-# Mission Planner - Titan Dynamics Edition
+# VFS Planner
 
 <p align="center">
    <img width="300" height="300" alt="icon" src="https://github.com/user-attachments/assets/b3e67430-0296-4f09-ada2-d01a03e684ae"/><br><br>

@@ -45,12 +45,14 @@ namespace MissionPlanner.Controls.PreFlight
         private List<Label> descLabels = new List<Label>();
         private List<Label> labels = new List<Label>();
         private List<CheckBox> checkboxes = new List<CheckBox>();
+        private List<Panel> statusIndicators = new List<Panel>();
 
         internal struct internaldata
         {
             internal Label desc;
             internal Label text;
             internal CheckBox tickbox;
+            internal Panel statusIndicator;
             internal CheckListItem CLItem;
         }
 
@@ -98,8 +100,19 @@ namespace MissionPlanner.Controls.PreFlight
                 descLabels.Clear();
                 labels.Clear();
                 checkboxes.Clear();
+                statusIndicators.Clear();
+                bool? automaticSection = null;
                 foreach (var item in this.CheckListItems)
                 {
+                    bool isAutomatic = item.ConditionType != CheckListItem.Conditional.NONE;
+                    if (automaticSection != isAutomatic)
+                    {
+                        var section = addsectionlabel(5, y,
+                            isAutomatic ? "AUTOMATIC CHECKS" : "MANUAL CHECKLIST");
+                        y = section.Bottom;
+                        automaticSection = isAutomatic;
+                    }
+
                     var wrnctl = addwarningcontrol(5, y, item);
 
                     rowcount++;
@@ -132,19 +145,39 @@ namespace MissionPlanner.Controls.PreFlight
                         if (data.CLItem.ConditionType != CheckListItem.Conditional.NONE)
                             tickbox.Checked = data.CLItem.checkCond(data.CLItem);
 
-                        if (tickbox.Checked)
-                        {
-                            data.text.ForeColor = data.CLItem._TrueColor;
-                            data.desc.ForeColor = data.CLItem._TrueColor;
-                        }
-                        else
-                        {
-                            data.text.ForeColor = data.CLItem._FalseColor;
-                            data.desc.ForeColor = data.CLItem._FalseColor;
-                        }
+                        SetRowState(data, tickbox.Checked);
                     }
+                    if (item.Name.StartsWith("uindicator"))
+                        SetRowState(data, data.CLItem.checkCond(data.CLItem));
                 }
             }
+        }
+
+        private void SetRowState(internaldata data, bool passed)
+        {
+            var color = passed ? data.CLItem._TrueColor : data.CLItem._FalseColor;
+            data.text.ForeColor = color;
+            data.desc.ForeColor = color;
+            if (data.statusIndicator != null)
+            {
+                data.statusIndicator.ForeColor = passed ? Color.Green : Color.Red;
+                data.statusIndicator.Invalidate();
+            }
+        }
+
+        private Label addsectionlabel(int x, int y, string title)
+        {
+            var section = new Label
+            {
+                AutoSize = false,
+                Font = new Font(Font, FontStyle.Bold),
+                Location = new Point(x, y + 4),
+                Size = new Size(panel1.Width - 20, 24),
+                Text = title,
+                TextAlign = ContentAlignment.MiddleLeft
+            };
+            panel1.Controls.Add(section);
+            return section;
         }
 
         Control addwarningcontrol(int x, int y, CheckListItem item, bool hideforchild = false)
@@ -164,6 +197,21 @@ namespace MissionPlanner.Controls.PreFlight
             desc = new Label() { Text = desctext, Location = new Point(5, 9), Size = new Size(x1, height), Name = "udesc" + y };
             text = new Label() { Text = texttext, Location = new Point(desc.Right, 9), Size = new Size(x2, height), Name = "utext" + y };
             tickbox = new CheckBox() { Checked = item.checkCond(item), Location = new Point((text.Right), 7), Size = new Size(21, 21), Name = "utickbox" + y };
+            tickbox.Visible = item.ConditionType == CheckListItem.Conditional.NONE;
+            var statusIndicator = new Panel
+            {
+                Location = new Point(text.Right, 9),
+                Size = new Size(16, 16),
+                Name = "uindicator" + y,
+                Visible = item.ConditionType != CheckListItem.Conditional.NONE,
+                ForeColor = item.checkCond(item) ? Color.Green : Color.Red
+            };
+            statusIndicator.Paint += (sender, args) =>
+            {
+                var indicator = sender as Panel;
+                using (var brush = new SolidBrush(indicator.ForeColor))
+                    args.Graphics.FillEllipse(brush, 1, 1, indicator.Width - 2, indicator.Height - 2);
+            };
             tickbox.CheckedChanged += (sender, args) =>
             {
                 if (item.ConditionType == CheckListItem.Conditional.NONE)
@@ -173,7 +221,15 @@ namespace MissionPlanner.Controls.PreFlight
                 }
             };
 
-            desc.Tag = text.Tag = tickbox.Tag = new internaldata { CLItem = item, desc = desc, text = text, tickbox = tickbox };
+            var data = new internaldata
+            {
+                CLItem = item,
+                desc = desc,
+                text = text,
+                tickbox = tickbox,
+                statusIndicator = statusIndicator
+            };
+            desc.Tag = text.Tag = tickbox.Tag = statusIndicator.Tag = data;
 
             //Changing the font size of the desc labels text according to amount of characters contained in the label
             desc.TextAlign = ContentAlignment.MiddleLeft;
@@ -197,6 +253,7 @@ namespace MissionPlanner.Controls.PreFlight
             gb.Controls.Add(desc);
             gb.Controls.Add(text);
             gb.Controls.Add(tickbox);
+            gb.Controls.Add(statusIndicator);
 
             panel1.Controls.Add(gb);
 
@@ -205,6 +262,7 @@ namespace MissionPlanner.Controls.PreFlight
             descLabels.Add(desc);
             labels.Add(text);
             checkboxes.Add(tickbox);
+                statusIndicators.Add(statusIndicator);
 
             y = gb.Bottom;
 

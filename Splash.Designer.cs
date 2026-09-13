@@ -64,7 +64,7 @@
             // 
             this.titanLogo.BackColor = System.Drawing.Color.Transparent;
             this.titanLogo.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.titanLogo.Image = ((System.Drawing.Image)(resources.GetObject("titanLogo.Image")));
+            this.titanLogo.Image = global::MissionPlanner.Properties.Resources.TD_MP;
             this.titanLogo.Location = new System.Drawing.Point(0, 0);
             this.titanLogo.Name = "titanLogo";
             this.titanLogo.Size = new System.Drawing.Size(660, 400);

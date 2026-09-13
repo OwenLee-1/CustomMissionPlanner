@@ -256,7 +256,7 @@ namespace MissionPlanner
                 return;
             }
 
-            name = "Mission Planner - Titan Dynamics Edition";
+            name = "VFS Planner";
 
             try
             {
