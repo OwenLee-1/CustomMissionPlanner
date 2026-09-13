@@ -1,7 +1,8 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Text.RegularExpressions;
+using System.Linq;
 
 namespace MissionPlanner.Controls.PreFlight
 {
@@ -313,7 +314,7 @@ namespace MissionPlanner.Controls.PreFlight
                         return true;
                     break;
                 case Conditional.NONE:
-                    return item.ManualChecked;
+                    return ManualChecked;
             }
 
             return false;

@@ -1,5 +1,7 @@
-﻿using MissionPlanner.Utilities;
+using MissionPlanner.Utilities;
 using System;
+using System.Linq;
+using System.Linq;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
