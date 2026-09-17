@@ -137,7 +137,7 @@
     <value>..\..\..\camerasBuiltin.xml;System.String, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089;Windows-1252</value>
   </data>
   <data name="checklistDefault" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\..\..\checklistDefault.xml;System.String, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089;Windows-1252</value>
+    <value>..\..\..\missionChecklistDefault.xml;System.String, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089;utf-8</value>
   </data>
   <data name="dataflashlog" type="System.Resources.ResXFileRef, System.Windows.Forms">
     <value>..\..\..\dataflashlog.xml;System.String, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089;Windows-1252</value>

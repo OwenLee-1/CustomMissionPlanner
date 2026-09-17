@@ -284,7 +284,7 @@ namespace Xamarin.GCSViews
                     files.camerasBuiltin);
 
                 File.WriteAllText(
-                    Settings.GetUserDataDirectory() + Path.DirectorySeparatorChar + "checklistDefault.xml",
+                    Settings.GetUserDataDirectory() + Path.DirectorySeparatorChar + "missionChecklistDefault.xml",
                     files.checklistDefault);
 
                 File.WriteAllText(

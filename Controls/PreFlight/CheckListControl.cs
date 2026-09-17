@@ -61,8 +61,8 @@ namespace MissionPlanner.Controls.PreFlight
 
 
         public CheckListControl()
-            : this(Settings.GetUserDataDirectory() + "checklist.xml",
-                Settings.GetRunningDirectory() + "checklistDefault.xml")
+            : this(Settings.GetUserDataDirectory() + "missionChecklist.xml",
+                Settings.GetRunningDirectory() + "missionChecklistDefault.xml")
         {
         }
 
@@ -283,17 +283,19 @@ namespace MissionPlanner.Controls.PreFlight
         public void LoadConfig()
         {
             string loadfile = configfile;
+            var userFileName = Path.GetFileName(configfile);
+            bool isLegacyUserFile =
+                userFileName.Equals("checklist.xml", StringComparison.OrdinalIgnoreCase) ||
+                userFileName.Equals("checklistDefault.xml", StringComparison.OrdinalIgnoreCase);
 
-            if (!File.Exists(configfile))
+            if (isLegacyUserFile || !File.Exists(configfile))
             {
                 if (!File.Exists(configfiledefault))
                 {
                     return;
                 }
-                else
-                {
-                    loadfile = configfiledefault;
-                }
+
+                loadfile = configfiledefault;
             }
 
             System.Xml.Serialization.XmlSerializer reader =

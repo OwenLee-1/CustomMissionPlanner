@@ -753,6 +753,9 @@
     <Content Include="checklistDefault.xml">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
+    <Content Include="missionChecklistDefault.xml">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
     <Content Include="dataflashlog.xml">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>

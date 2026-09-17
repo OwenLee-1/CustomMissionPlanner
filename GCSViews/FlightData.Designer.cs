@@ -100,7 +100,9 @@ namespace MissionPlanner.GCSViews
             this.myButton2 = new MissionPlanner.Controls.MyButton();
             this.myButton3 = new MissionPlanner.Controls.MyButton();
             this.tabPagePreFlight = new System.Windows.Forms.TabPage();
-            this.checkListControl1 = new MissionPlanner.Controls.PreFlight.CheckListControl();
+            this.checkListControl1 = new MissionPlanner.Controls.PreFlight.CheckListControl(
+                MissionPlanner.Utilities.Settings.GetUserDataDirectory() + "missionChecklist.xml",
+                MissionPlanner.Utilities.Settings.GetRunningDirectory() + "missionChecklistDefault.xml");
             this.tabGauges = new System.Windows.Forms.TabPage();
             this.Gvspeed = new AGaugeApp.AGauge();
             this.bindingSourceGaugesTab = new System.Windows.Forms.BindingSource(this.components);
