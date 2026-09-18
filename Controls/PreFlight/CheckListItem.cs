@@ -287,6 +287,23 @@ namespace MissionPlanner.Controls.PreFlight
         /// <returns></returns>
         bool CheckValue()
         {
+            if (Item != null && Item.PropertyType == typeof(bool))
+            {
+                var flag = (bool)GetValueObject;
+                var target = TriggerValue >= 0.5;
+                switch (ConditionType)
+                {
+                    case Conditional.EQ:
+                        return flag == target;
+                    case Conditional.NEQ:
+                        return flag != target;
+                    case Conditional.NONE:
+                        return ManualChecked;
+                }
+
+                return false;
+            }
+
             switch (ConditionType)
             {
                 case Conditional.EQ:

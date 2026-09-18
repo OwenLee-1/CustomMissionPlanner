@@ -2298,9 +2298,11 @@ namespace MissionPlanner.GCSViews
                     }
                 }
 
-                MainMap.MapProvider = (GMapProvider) comboBoxMapType.SelectedItem;
-                if(FlightData.mymap != null)
-                    FlightData.mymap.MapProvider = (GMapProvider) comboBoxMapType.SelectedItem;
+                var selected = (GMapProvider)comboBoxMapType.SelectedItem;
+                selected = MapOverlayHelper.ResolveMapProvider(selected, MainV2.ShowWeather);
+                MainMap.MapProvider = selected;
+                if (FlightData.mymap != null)
+                    FlightData.mymap.MapProvider = selected;
                 Settings.Instance["MapType"] = comboBoxMapType.Text;
             }
             catch (Exception ex)

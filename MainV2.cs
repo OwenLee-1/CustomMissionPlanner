@@ -369,6 +369,18 @@ namespace MissionPlanner
         public static bool ShowAirports { get; set; }
         public static bool ShowTFR { get; set; }
 
+        public static bool ShowWeather { get; set; }
+
+        public static bool ShowAirspace { get; set; }
+
+        public static bool ShowUasFacilityMap { get; set; }
+
+        public static bool ShowNotams { get; set; }
+
+        public static bool ShowSpecialUseAirspace { get; set; }
+
+        public static bool ShowNoFly { get; set; } = true;
+
         private Utilities.adsb _adsb;
 
         private readonly System.Collections.Generic.List<string> _pendingParamToasts = new System.Collections.Generic.List<string>();
@@ -898,6 +910,16 @@ namespace MissionPlanner
             {
                 MainV2.ShowTFR = Settings.Instance.GetBoolean("showtfr", ShowTFR);
             }
+
+            ShowWeather = Settings.Instance.GetBoolean("showweather", false);
+            ShowAirspace = Settings.Instance.GetBoolean("showairspace", false);
+            ShowUasFacilityMap = Settings.Instance.GetBoolean("showuasfm", false);
+            ShowNotams = Settings.Instance.GetBoolean("shownotams", false);
+            ShowSpecialUseAirspace = Settings.Instance.GetBoolean("showspecialuse", false);
+            ShowNoFly = Settings.Instance.GetBoolean("ShowNoFly", true);
+
+            if (Settings.Instance["airspaceWfsUrl"] != null)
+                FlightRestrictionsOverlay.AirspaceWfsUrl = Settings.Instance["airspaceWfsUrl"];
 
             if (Settings.Instance["enableadsb"] != null)
             {
@@ -3495,8 +3517,7 @@ namespace MissionPlanner
 
             ThreadPool.QueueUserWorkItem(BGLogMessagesMetaData);
 
-            // tfr went dead on 30-9-2020
-            //ThreadPool.QueueUserWorkItem(BGgetTFR);
+            ThreadPool.QueueUserWorkItem(BGRefreshFlightRestrictions);
 
             ThreadPool.QueueUserWorkItem(BGNoFly);
 
@@ -4236,6 +4257,21 @@ namespace MissionPlanner
 
                     Settings.Instance["kindexdate"] = DateTime.Now.ToShortDateString();
                 }
+            }
+            catch (Exception ex)
+            {
+                log.Error(ex);
+            }
+        }
+
+        private void BGRefreshFlightRestrictions(object state)
+        {
+            try
+            {
+                while (FlightData == null || FlightData.mymap == null)
+                    Thread.Sleep(500);
+
+                FlightData.instance?.BeginInvoke(new Action(() => FlightData.instance.RefreshFlightRestrictionOverlays()));
             }
             catch (Exception ex)
             {

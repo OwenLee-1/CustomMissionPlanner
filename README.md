@@ -1,44 +1,101 @@
-# VFS Planner
+# Custom Mission Planner (VFS Planner)
 
-<p align="center">
-   <img width="300" height="300" alt="icon" src="https://github.com/user-attachments/assets/b3e67430-0296-4f09-ada2-d01a03e684ae"/><br><br>
-   A customized fork of <a href="https://github.com/ArduPilot/MissionPlanner">Mission Planner</a> with enhanced UI/UX and ease-of-use improvements
-   <br><br>
-   <img width="2560" height="1540" alt="image" src="https://github.com/user-attachments/assets/c352a50b-89bf-42c2-a591-75aa20c94a55" /><br><br>
-   <img width="1299" height="1056" alt="image" src="https://github.com/user-attachments/assets/ef922968-cc05-4402-bb51-fa37d8a365df" /><br><br>
-   <img width="1278" height="809" alt="image" src="https://github.com/user-attachments/assets/d82c06ba-66a9-4a49-998e-9ab056a240e0" /><br><br>
-   <img width="1718" height="1093" alt="image" src="https://github.com/user-attachments/assets/0afb4ca6-5123-49fb-bb2a-0c4430df698f" /><br>
-</p>
+A customized fork of [Mission Planner](https://github.com/ArduPilot/MissionPlanner) for ArduPilot vehicles. It keeps upstream compatibility while adding map overlays, preflight checks, and UI improvements.
+
+**Full fork changelog:** [CHANGES.md](CHANGES.md)
 
 ---
 
-## Enhancements
+## Table of contents
 
-This fork implements every feature we've always yearned for with considerable UI/UX upgrades, a reworked HUD, a real-time 3D map with vehicle rendering (and ADSB), an overhauled parameter editor and tab layout, a Betaflight-style motor setup, USB auto-connect, and dozens of large improvements throughout the app.
+- [Quick start](#quick-start)
+- [Main screens](#main-screens)
+- [Map overlays (Flight Data)](#map-overlays-flight-data)
+- [Preflight & arming](#preflight--arming)
+- [Installation](#installation)
+- [Platform support](#platform-support)
+- [Upstream & license](#upstream--license)
 
-**See [CHANGES.md](CHANGES.md) for the full list of features and fixes added in this fork.**
+---
+
+## Quick start
+
+1. **Install or build** the app (see [Installation](#installation)).
+2. **Connect** the vehicle (USB, radio, or TCP/UDP — same as Mission Planner).
+3. Open **Flight Data** to fly and monitor telemetry; open **Flight Planner** to edit waypoints.
+4. Before arming, open **Mission Checklist** and complete items; use map overlays if you need TFR/airspace context.
+
+---
+
+## Main screens
+
+| Tab / area | Use it for |
+|------------|------------|
+| **Flight Data** | Live map, HUD, telemetry, map overlay toggles |
+| **Flight Planner** | Mission waypoints, geofence, rally points |
+| **Mission Checklist** | Preflight summary and checklist (arming blockers) |
+| **Initial Setup / Config** | Parameters, firmware, frame setup (same workflow as upstream) |
+
+Other tabs match upstream Mission Planner unless noted in [CHANGES.md](CHANGES.md).
+
+---
+
+## Map overlays (Flight Data)
+
+At the **bottom of the map** on Flight Data, use the checkboxes to turn layers on or off. Layers load from the network when enabled; allow a few seconds for polygons or tiles to appear.
+
+| Toggle | What it shows |
+|--------|----------------|
+| **Weather** | RainViewer radar tiles on the map |
+| **TFRs** | FAA temporary flight restrictions (polygons) |
+| **Airspace** | OpenAIP airspace (WFS; URL configurable) |
+| **LAANC grid** | FAA UAS facility map grid |
+| **NOTAMs** | Markers derived from TFR locations |
+| **Special use** | Special-use airspace (OpenAIP + DoD layer where available) |
+| **Custom NoFly** | Your configured no-fly zones |
+
+**NOTAM / TFR briefing:** With TFR-related data loaded, a panel on the right side of the map lists items and offers zoom and FAA detail links.
+
+Settings for these layers are stored in planner settings (same keys as the checkboxes, e.g. `showweather`, `showtfr`, `showairspace`).
+
+---
+
+## Preflight & arming
+
+**Mission Checklist** includes a **preflight summary** at the top (link, GPS, PreArm, TFR conflicts, etc.) and checklist items from `checklistDefault.xml` / your saved mission checklist.
+
+Arming can be blocked when:
+
+- Required checklist items marked as arming blockers are not complete
+- The link is not connected (when applicable)
+- PreArm checks fail (default: required; setting `armguard_require_prearm`)
+- Home or mission path intersects loaded TFRs (default: blocked; setting `armguard_block_tfr`)
+
+For TFR-based arming checks, enable **TFRs** on the map so polygons can load before you arm.
+
+Run **PreArm** from the checklist or summary when the vehicle is connected and configured.
 
 ---
 
 ## Installation
 
-### Windows (Recommended)
+### Windows (typical)
 
-Install the latest VFS Planner build supplied by your deployment team. The app will notify you about updates when configured.
+Use the build provided by your team, or build from source below.
 
-### Building from Source
+### Build from source
 
-Requires Visual Studio 2022.
+- **Requirements:** Visual Studio 2022, .NET tooling as required by the solution
 
 ```bash
-git clone <your-vfs-planner-repository-url>
+git clone <repository-url>
 cd CustomMissionPlanner
 git submodule update --init
 ```
 
-Open `MissionPlanner.sln` in Visual Studio 2022 and Build.
+Open `MissionPlanner.sln` in Visual Studio 2022 and build **MissionPlanner**.
 
-### Linux (Mono)
+### Linux (Mono, experimental)
 
 ```bash
 sudo apt install mono-complete mono-runtime libmono-system-windows-forms4.0-cil \
@@ -50,24 +107,21 @@ mono MissionPlanner.exe
 
 ---
 
-## Platform Support
+## Platform support
 
 | Platform | Status |
 |----------|--------|
-| Windows | ✅ Full Support |
-| Linux (Mono) | ⚠️ WIP |
-| macOS | ⚠️ WIP |
-| Android | ⚠️ WIP |
-| iOS | ⚠️ WIP |
+| Windows | Supported |
+| Linux (Mono) | Work in progress |
+| macOS | Work in progress |
+| Android / iOS | Work in progress |
 
 ---
 
-## Upstream
+## Upstream & license
 
-- Upstream repository: https://github.com/ArduPilot/MissionPlanner
-- ArduPilot website: http://ardupilot.org/planner/
-- Forum: http://discuss.ardupilot.org/c/ground-control-software/mission-planner
+- Upstream: https://github.com/ArduPilot/MissionPlanner  
+- ArduPilot docs: https://ardupilot.org/planner/  
+- Community: https://discuss.ardupilot.org/c/ground-control-software/mission-planner  
 
-## License
-
-See [COPYING.txt](COPYING.txt).
+License: [COPYING.txt](COPYING.txt)

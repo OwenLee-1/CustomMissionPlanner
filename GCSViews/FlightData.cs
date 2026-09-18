@@ -160,6 +160,10 @@ namespace MissionPlanner.GCSViews
         internal static GMapOverlay cameraBounds;
         internal static GMapOverlay rallypointoverlay;
         internal static GMapOverlay tfrpolygons;
+        internal static GMapOverlay airspacepolygons;
+        internal static GMapOverlay uasFacilitypolygons;
+        internal static GMapOverlay notamMarkers;
+        internal static GMapOverlay specialUsepolygons;
         internal GMapMarker CurrentGMapMarker;
 
         internal PointLatLng MouseDownStart;
@@ -178,6 +182,21 @@ namespace MissionPlanner.GCSViews
         private Controls.MapScaleBar _mapScaleBar;
         private bool _zoomInHover;
         private bool _zoomOutHover;
+
+        private Panel _mapOverlayBar;
+        private CheckBox _chkMapWeather;
+        private CheckBox _chkMapTfr;
+        private CheckBox _chkMapAirspace;
+        private CheckBox _chkMapLaanc;
+        private CheckBox _chkMapNotams;
+        private CheckBox _chkMapSpecialUse;
+        private CheckBox _chkMapNoFly;
+        private bool _mapOverlayCheckInternal;
+        private Panel _notamBriefHost;
+        private Controls.MapNotamBriefingPanel _notamBriefPanel;
+        private Controls.PreflightSummaryPanel _preflightSummaryPanel;
+        internal static string LastRestrictionBriefingSummary;
+        private DateTime _lastPreflightSummaryRefresh = DateTime.MinValue;
 
         private static readonly ILog log = LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
         AviWriter aviwriter;
@@ -504,7 +523,13 @@ namespace MissionPlanner.GCSViews
             InitializeComponent();
             MoveMapControlsAboveTuning();
             Add3DMapCheckbox();
-            MAVLinkInterface.ArmGuard = () => missionChecklistControl.ArmingChecksPassed;
+            MAVLinkInterface.ArmGuard = () =>
+            {
+                string reason;
+                return PreflightArmGuard.CanArm(missionChecklistControl, out reason);
+            };
+
+            SetupMissionChecklistSummary();
 
             log.Info("Components Done");
 
@@ -683,6 +708,21 @@ namespace MissionPlanner.GCSViews
 
             tfrpolygons = new GMapOverlay("tfrpolygons");
             gMapControl1.Overlays.Add(tfrpolygons);
+
+            airspacepolygons = new GMapOverlay("airspacepolygons");
+            gMapControl1.Overlays.Add(airspacepolygons);
+
+            uasFacilitypolygons = new GMapOverlay("uasfacility");
+            gMapControl1.Overlays.Add(uasFacilitypolygons);
+
+            notamMarkers = new GMapOverlay("notammarkers");
+            gMapControl1.Overlays.Add(notamMarkers);
+
+            specialUsepolygons = new GMapOverlay("specialuse");
+            gMapControl1.Overlays.Add(specialUsepolygons);
+
+            ApplyMapOverlaySettings();
+            MapOverlayHelper.ApplyWeatherRadar(gMapControl1, MainV2.ShowWeather);
 
             kmlpolygons = new GMapOverlay("kmlpolygons");
             gMapControl1.Overlays.Add(kmlpolygons);
@@ -863,6 +903,200 @@ namespace MissionPlanner.GCSViews
                 }
             };
 
+            SetupMapOverlayBar();
+            SetupNotamBriefingPanel();
+        }
+
+        private void SetupMissionChecklistSummary()
+        {
+            tabMissionChecklist.Controls.Remove(missionChecklistControl);
+            _preflightSummaryPanel = new Controls.PreflightSummaryPanel
+            {
+                Dock = DockStyle.Top,
+                Height = 220
+            };
+            tabMissionChecklist.Controls.Add(_preflightSummaryPanel);
+            tabMissionChecklist.Controls.Add(missionChecklistControl);
+            missionChecklistControl.Dock = DockStyle.Fill;
+        }
+
+        private void RefreshPreflightSummaryIfNeeded()
+        {
+            if (_preflightSummaryPanel == null)
+                return;
+
+            if ((DateTime.UtcNow - _lastPreflightSummaryRefresh).TotalSeconds < 1)
+                return;
+
+            _lastPreflightSummaryRefresh = DateTime.UtcNow;
+            _preflightSummaryPanel.RefreshSummary(missionChecklistControl);
+        }
+
+        private void SetupNotamBriefingPanel()
+        {
+            _notamBriefHost = new Panel
+            {
+                Dock = DockStyle.Right,
+                Width = 300,
+                BackColor = Color.FromArgb(240, 240, 240),
+                Visible = false,
+                Name = "notamBriefHost"
+            };
+
+            _notamBriefPanel = new Controls.MapNotamBriefingPanel { Dock = DockStyle.Fill };
+            _notamBriefPanel.ZoomToItem += item =>
+            {
+                if (item.Center.IsEmpty)
+                    return;
+                gMapControl1.Position = item.Center;
+                if (gMapControl1.Zoom < 9)
+                {
+                    gMapControl1.Zoom = 9;
+                    TRK_zoom.Value = (float)gMapControl1.Zoom;
+                    Zoomlevel.Value = Convert.ToDecimal(gMapControl1.Zoom);
+                }
+            };
+
+            _notamBriefHost.Controls.Add(_notamBriefPanel);
+            MapContentPanel.Controls.Add(_notamBriefHost);
+            _notamBriefHost.BringToFront();
+        }
+
+        private bool ShouldShowRestrictionBriefing()
+        {
+            return MainV2.ShowTFR || MainV2.ShowNotams || MainV2.ShowUasFacilityMap ||
+                   MainV2.ShowSpecialUseAirspace || MainV2.ShowAirspace;
+        }
+
+        private void UpdateNotamBriefingPanelVisibility()
+        {
+            if (_notamBriefHost == null)
+                return;
+
+            _notamBriefHost.Visible = ShouldShowRestrictionBriefing();
+            if (!_notamBriefHost.Visible)
+                _notamBriefPanel?.ClearBriefing();
+        }
+
+        private void SetupMapOverlayBar()
+        {
+            _mapOverlayBar = new Panel
+            {
+                Dock = DockStyle.Bottom,
+                Height = 52,
+                BackColor = Color.FromArgb(200, 30, 30, 30),
+                Padding = new Padding(8, 4, 8, 4),
+                Name = "mapOverlayBar"
+            };
+
+            var flow = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                FlowDirection = FlowDirection.LeftToRight,
+                WrapContents = true,
+                BackColor = Color.Transparent,
+                AutoSize = false
+            };
+
+            _chkMapWeather = CreateMapOverlayCheckbox("Weather", MainV2.ShowWeather);
+            _chkMapTfr = CreateMapOverlayCheckbox("TFRs", MainV2.ShowTFR);
+            _chkMapAirspace = CreateMapOverlayCheckbox("Airspace", MainV2.ShowAirspace);
+            _chkMapLaanc = CreateMapOverlayCheckbox("LAANC grid", MainV2.ShowUasFacilityMap);
+            _chkMapNotams = CreateMapOverlayCheckbox("NOTAMs", MainV2.ShowNotams);
+            _chkMapSpecialUse = CreateMapOverlayCheckbox("Special use", MainV2.ShowSpecialUseAirspace);
+            _chkMapNoFly = CreateMapOverlayCheckbox("Custom NoFly", MainV2.ShowNoFly);
+
+            EventHandler overlayChanged = (s, e) => OnMapOverlayCheckboxesChanged();
+            _chkMapWeather.CheckedChanged += overlayChanged;
+            _chkMapTfr.CheckedChanged += overlayChanged;
+            _chkMapAirspace.CheckedChanged += overlayChanged;
+            _chkMapLaanc.CheckedChanged += overlayChanged;
+            _chkMapNotams.CheckedChanged += overlayChanged;
+            _chkMapSpecialUse.CheckedChanged += overlayChanged;
+            _chkMapNoFly.CheckedChanged += overlayChanged;
+
+            flow.Controls.Add(_chkMapWeather);
+            flow.Controls.Add(_chkMapTfr);
+            flow.Controls.Add(_chkMapAirspace);
+            flow.Controls.Add(_chkMapLaanc);
+            flow.Controls.Add(_chkMapNotams);
+            flow.Controls.Add(_chkMapSpecialUse);
+            flow.Controls.Add(_chkMapNoFly);
+            _mapOverlayBar.Controls.Add(flow);
+
+            MapContentPanel.Controls.Add(_mapOverlayBar);
+            _mapOverlayBar.BringToFront();
+        }
+
+        private static CheckBox CreateMapOverlayCheckbox(string text, bool isChecked)
+        {
+            return new CheckBox
+            {
+                Text = text,
+                AutoSize = true,
+                Checked = isChecked,
+                ForeColor = Color.White,
+                BackColor = Color.Transparent,
+                Margin = new Padding(0, 0, 16, 0)
+            };
+        }
+
+        private void OnMapOverlayCheckboxesChanged()
+        {
+            if (_mapOverlayCheckInternal)
+                return;
+
+            MainV2.ShowWeather = _chkMapWeather.Checked;
+            MainV2.ShowTFR = _chkMapTfr.Checked;
+            MainV2.ShowAirspace = _chkMapAirspace.Checked;
+            MainV2.ShowUasFacilityMap = _chkMapLaanc.Checked;
+            MainV2.ShowNotams = _chkMapNotams.Checked;
+            MainV2.ShowSpecialUseAirspace = _chkMapSpecialUse.Checked;
+            MainV2.ShowNoFly = _chkMapNoFly.Checked;
+
+            Settings.Instance["showweather"] = MainV2.ShowWeather.ToString();
+            Settings.Instance["showtfr"] = MainV2.ShowTFR.ToString();
+            Settings.Instance["showairspace"] = MainV2.ShowAirspace.ToString();
+            Settings.Instance["showuasfm"] = MainV2.ShowUasFacilityMap.ToString();
+            Settings.Instance["shownotams"] = MainV2.ShowNotams.ToString();
+            Settings.Instance["showspecialuse"] = MainV2.ShowSpecialUseAirspace.ToString();
+            Settings.Instance["ShowNoFly"] = MainV2.ShowNoFly.ToString();
+
+            ApplyMapOverlaySettings();
+        }
+
+        private void SyncMapOverlayCheckboxUi()
+        {
+            if (_chkMapWeather == null)
+                return;
+
+            _mapOverlayCheckInternal = true;
+            try
+            {
+                _chkMapWeather.Checked = MainV2.ShowWeather;
+                _chkMapTfr.Checked = MainV2.ShowTFR;
+                _chkMapAirspace.Checked = MainV2.ShowAirspace;
+                _chkMapLaanc.Checked = MainV2.ShowUasFacilityMap;
+                _chkMapNotams.Checked = MainV2.ShowNotams;
+                _chkMapSpecialUse.Checked = MainV2.ShowSpecialUseAirspace;
+                _chkMapNoFly.Checked = MainV2.ShowNoFly;
+            }
+            finally
+            {
+                _mapOverlayCheckInternal = false;
+            }
+        }
+
+        private static FlightRestrictionsOverlay.OverlaySet BuildRestrictionOverlays()
+        {
+            return new FlightRestrictionsOverlay.OverlaySet
+            {
+                Tfr = tfrpolygons,
+                Airspace = airspacepolygons,
+                UasFacility = uasFacilitypolygons,
+                NotamMarkers = notamMarkers,
+                SpecialUse = specialUsepolygons
+            };
         }
 
         public void Activate()
@@ -1638,10 +1872,12 @@ namespace MissionPlanner.GCSViews
                 var isitarmed = MainV2.comPort.MAV.cs.armed;
                 var action = MainV2.comPort.MAV.cs.armed ? "Disarm" : "Arm";
 
-                if (!isitarmed && !missionChecklistControl.ArmingChecksPassed)
+                if (!isitarmed && !PreflightArmGuard.CanArm(missionChecklistControl, out var armBlockReason))
                 {
                     CustomMessageBox.Show(
-                        "PIC and GCO final verification must both be completed before arming.",
+                        string.IsNullOrEmpty(armBlockReason)
+                            ? "Preflight checks must pass before arming."
+                            : armBlockReason,
                         "Arming blocked");
                     return;
                 }
@@ -4011,6 +4247,7 @@ namespace MissionPlanner.GCSViews
             }
 
             center.Position = gMapControl1.Position;
+            RefreshFlightRestrictionOverlays();
         }
 
         void gMapControl1_OnMarkerEnter(GMapMarker item)
@@ -4028,6 +4265,7 @@ namespace MissionPlanner.GCSViews
             center.Position = point;
 
             UpdateOverlayVisibility();
+            RefreshFlightRestrictionOverlays();
         }
 
         private void gMapControl1_Resize(object sender, EventArgs e)
@@ -5238,6 +5476,8 @@ namespace MissionPlanner.GCSViews
                             });
                         }
 
+                        RefreshPreflightSummaryIfNeeded();
+
                         tracklast = DateTime.Now;
                     }
                 }
@@ -5430,6 +5670,7 @@ namespace MissionPlanner.GCSViews
         {
             BeginInvoke((Action) delegate
             {
+                e.NoFlyZones.IsVisibile = MainV2.ShowNoFly;
                 gMapControl1.Overlays.Add(e.NoFlyZones);
             });
         }
@@ -7119,6 +7360,79 @@ namespace MissionPlanner.GCSViews
                         poly.IsVisible = false;
                 }
             }
+        }
+
+        public void RefreshFlightRestrictionOverlays()
+        {
+            if (gMapControl1?.ViewArea == null)
+                return;
+
+            UpdateNotamBriefingPanelVisibility();
+
+            var anyRestrictionLayer = MainV2.ShowTFR || MainV2.ShowAirspace || MainV2.ShowUasFacilityMap ||
+                                    MainV2.ShowNotams || MainV2.ShowSpecialUseAirspace;
+
+            if (!anyRestrictionLayer)
+            {
+                FlightRestrictionsOverlay.SetOverlayVisibility(BuildRestrictionOverlays(), false, false, false, false,
+                    false);
+                return;
+            }
+
+            var showBriefing = ShouldShowRestrictionBriefing();
+            FlightRestrictionsOverlay.RequestRefresh(gMapControl1.ViewArea, BuildRestrictionOverlays(),
+                new FlightRestrictionsOverlay.RefreshOptions
+                {
+                    LoadTfr = MainV2.ShowTFR,
+                    LoadAirspace = MainV2.ShowAirspace,
+                    LoadUasFacilityMap = MainV2.ShowUasFacilityMap,
+                    LoadNotams = MainV2.ShowNotams,
+                    LoadSpecialUseAirspace = MainV2.ShowSpecialUseAirspace,
+                    LoadBriefing = showBriefing && (MainV2.ShowTFR || MainV2.ShowNotams),
+                    BriefingUpdated = showBriefing
+                        ? (Action<List<NotamBriefingItem>>)(list => _notamBriefPanel?.SetBriefingItems(list))
+                        : null,
+                    SummaryUpdated = showBriefing
+                        ? (Action<FlightRestrictionsOverlay.RestrictionBriefingSummary>)(s =>
+                        {
+                            _notamBriefPanel?.SetSummary(s);
+                            var parts = new List<string>();
+                            if (s.TfrNotamCount > 0)
+                                parts.Add($"{s.TfrNotamCount} TFR/NOTAM in view");
+                            if (s.UasGridCells > 0)
+                                parts.Add($"{s.UasGridCells} LAANC cells");
+                            if (s.SpecialUseAreas > 0)
+                                parts.Add($"{s.SpecialUseAreas} special-use");
+                            LastRestrictionBriefingSummary = parts.Count == 0 ? null : string.Join(" · ", parts);
+                        })
+                        : null,
+                    InvokeOnUi = action =>
+                    {
+                        if (InvokeRequired)
+                            BeginInvoke((Action)action);
+                        else
+                            action();
+                    }
+                });
+        }
+
+        public static void ApplyMapOverlaySettings()
+        {
+            FlightRestrictionsOverlay.SetOverlayVisibility(BuildRestrictionOverlays(), MainV2.ShowTFR,
+                MainV2.ShowAirspace, MainV2.ShowUasFacilityMap, MainV2.ShowNotams, MainV2.ShowSpecialUseAirspace);
+
+            instance?.UpdateNotamBriefingPanelVisibility();
+
+            NoFly.NoFly.SetZonesVisible(MainV2.ShowNoFly);
+
+            if (mymap != null)
+                MapOverlayHelper.ApplyWeatherRadar(mymap, MainV2.ShowWeather);
+
+            if (FlightPlanner.instance?.MainMap != null)
+                MapOverlayHelper.ApplyWeatherRadar(FlightPlanner.instance.MainMap, MainV2.ShowWeather);
+
+            instance?.SyncMapOverlayCheckboxUi();
+            instance?.RefreshFlightRestrictionOverlays();
         }
 
         private void updatePlayPauseButton(bool playing)

@@ -24,6 +24,8 @@ namespace MissionPlanner.GCSViews.ConfigurationView
         static temp temp;
         private FlowLayoutPanel layoutRoot;
         private readonly CheckBox CHK_startFullscreen;
+        private readonly CheckBox chk_weather;
+        private readonly CheckBox chk_airspace;
 
         public ConfigPlanner()
         {
@@ -36,6 +38,22 @@ namespace MissionPlanner.GCSViews.ConfigurationView
                 Text = "Always start fullscreen"
             };
             CHK_startFullscreen.CheckedChanged += CHK_startFullscreen_CheckedChanged;
+
+            chk_weather = new CheckBox
+            {
+                Name = "chk_weather",
+                AutoSize = true,
+                Text = "Weather radar"
+            };
+            chk_weather.CheckedChanged += chk_weather_CheckedChanged;
+
+            chk_airspace = new CheckBox
+            {
+                Name = "chk_airspace",
+                AutoSize = true,
+                Text = "Airspace"
+            };
+            chk_airspace.CheckedChanged += chk_airspace_CheckedChanged;
 
             InitializeComponent();
             CMB_Layout.Items.Add(DisplayNames.Basic);
@@ -415,6 +433,8 @@ namespace MissionPlanner.GCSViews.ConfigurationView
             overlaysFlow.Controls.Add(chk_shownofly);
             overlaysFlow.Controls.Add(chk_ADSB);
             overlaysFlow.Controls.Add(chk_tfr);
+            overlaysFlow.Controls.Add(chk_weather);
+            overlaysFlow.Controls.Add(chk_airspace);
             overlaysFlow.Controls.Add(chk_temp);
             table.Controls.Add(overlaysFlow, 0, 7);
             table.SetColumnSpan(overlaysFlow, 3);
@@ -579,6 +599,8 @@ namespace MissionPlanner.GCSViews.ConfigurationView
             SetCheckboxFromConfig("enableadsb", chk_ADSB);
             SetCheckboxFromConfig("norcreceiver", chk_norcreceiver);
             SetCheckboxFromConfig("showtfr", chk_tfr);
+            SetCheckboxFromConfig("showweather", chk_weather);
+            SetCheckboxFromConfig("showairspace", chk_airspace);
             SetCheckboxFromConfig("autoParamCommit", CHK_AutoParamCommit);
             SetCheckboxFromConfig("ShowNoFly", chk_shownofly);
             SetCheckboxFromConfig("Params_BG", CHK_params_bg);
@@ -1428,6 +1450,25 @@ namespace MissionPlanner.GCSViews.ConfigurationView
         {
             Settings.Instance["showtfr"] = chk_tfr.Checked.ToString();
             MainV2.ShowTFR = chk_tfr.Checked;
+            GCSViews.FlightData.ApplyMapOverlaySettings();
+        }
+
+        private void chk_weather_CheckedChanged(object sender, EventArgs e)
+        {
+            if (startup)
+                return;
+            Settings.Instance["showweather"] = chk_weather.Checked.ToString();
+            MainV2.ShowWeather = chk_weather.Checked;
+            GCSViews.FlightData.ApplyMapOverlaySettings();
+        }
+
+        private void chk_airspace_CheckedChanged(object sender, EventArgs e)
+        {
+            if (startup)
+                return;
+            Settings.Instance["showairspace"] = chk_airspace.Checked.ToString();
+            MainV2.ShowAirspace = chk_airspace.Checked;
+            GCSViews.FlightData.ApplyMapOverlaySettings();
         }
 
         public class GCSBitmapInfo
@@ -1505,10 +1546,13 @@ namespace MissionPlanner.GCSViews.ConfigurationView
         private void chk_shownofly_CheckedChanged(object sender, EventArgs e)
         {
             Settings.Instance["ShowNoFly"] = chk_shownofly.Checked.ToString();
+            MainV2.ShowNoFly = chk_shownofly.Checked;
             if (chk_shownofly.Checked)
             {
                 CHK_maprotation.Checked = false;
             }
+
+            GCSViews.FlightData.ApplyMapOverlaySettings();
         }
 
         private void CMB_altunits_SelectedIndexChanged(object sender, EventArgs e)

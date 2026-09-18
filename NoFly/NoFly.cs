@@ -19,6 +19,13 @@ namespace MissionPlanner.NoFly
 
         static GMapOverlay kmlpolygonsoverlay = new GMapOverlay();
 
+        public static GMapOverlay ZonesOverlay => kmlpolygonsoverlay;
+
+        public static void SetZonesVisible(bool visible)
+        {
+            kmlpolygonsoverlay.IsVisibile = visible;
+        }
+
         private static string directory = Settings.GetRunningDirectory() + "NoFly";
 
         public static event EventHandler<NoFlyEventArgs> NoFlyEvent;
