@@ -4268,10 +4268,10 @@ namespace MissionPlanner
         {
             try
             {
-                while (FlightData == null || FlightData.mymap == null)
+                while (FlightData == null || GCSViews.FlightData.mymap == null)
                     Thread.Sleep(500);
 
-                FlightData.instance?.BeginInvoke(new Action(() => FlightData.instance.RefreshFlightRestrictionOverlays()));
+                GCSViews.FlightData.instance?.BeginInvoke(new Action(() => GCSViews.FlightData.instance.RefreshFlightRestrictionOverlays()));
             }
             catch (Exception ex)
             {

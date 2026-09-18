@@ -103,7 +103,7 @@ namespace MissionPlanner.Maps
                 }
                 catch
                 {
-                    Interlocked.Exchange(ref _radarPathUpdated, DateTime.UtcNow);
+                    _radarPathUpdated = DateTime.UtcNow;
                 }
             }
         }

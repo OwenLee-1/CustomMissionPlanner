@@ -1,10 +1,11 @@
 using System;
+using System.Linq;
 using System.Drawing;
 using System.Windows.Forms;
 using MissionPlanner.Utilities;
-using MAVLink;
+using static MAVLink;
 
-namespace MissionPlanner.Controls
+namespace MissionPlanner.Controls.PreFlight
 {
     public class PreflightSummaryPanel : UserControl
     {
