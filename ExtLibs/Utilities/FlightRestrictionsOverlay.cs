@@ -89,7 +89,10 @@ namespace MissionPlanner.Utilities
             lock (RefreshLock)
             {
                 _lastRefresh = DateTime.UtcNow;
-                _lastBounds = InflateFetchBounds(viewArea);
+                var center = viewArea.IsEmpty ? PointLatLng.Empty : viewArea.LocationMiddle;
+                var zone = AviationBounds.NormalizeForFetch(viewArea, center, 10,
+                    AviationBounds.DefaultFetchRadiusKm);
+                _lastBounds = AviationBounds.InflateFetchBounds(zone);
 
                 _refreshCts?.Cancel();
                 _refreshCts = new CancellationTokenSource();
@@ -537,18 +540,6 @@ namespace MissionPlanner.Utilities
             if (area <= 0.05)
                 return 3500;
             return 2000;
-        }
-
-        private static RectLatLng InflateFetchBounds(RectLatLng view)
-        {
-            if (view.IsEmpty)
-                return view;
-
-            var b = view;
-            var padLat = Math.Max(view.HeightLat * 0.45, 0.012);
-            var padLng = Math.Max(view.WidthLng * 0.45, 0.012);
-            b.Inflate(padLat, padLng);
-            return b;
         }
 
         private static void SyncOverlayGeometry(GMapOverlay overlay)

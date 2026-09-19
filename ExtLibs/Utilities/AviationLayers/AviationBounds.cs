@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using GMap.NET;
 
 namespace MissionPlanner.Utilities.AviationLayers
@@ -89,7 +90,7 @@ namespace MissionPlanner.Utilities.AviationLayers
             return b;
         }
 
-        public static bool RingIntersects(RectLatLng view, System.Collections.Generic.IList<PointLatLng> ring)
+        public static bool RingIntersects(RectLatLng view, IList<PointLatLng> ring)
         {
             if (view.IsEmpty || ring == null || ring.Count < 2)
                 return false;
@@ -115,10 +116,10 @@ namespace MissionPlanner.Utilities.AviationLayers
             return maxLat >= bottom && minLat <= top && maxLng >= left && minLng <= right;
         }
 
-        public static System.Collections.Generic.List<MapPolygonFeature> FilterPolygonsInBounds(
-            System.Collections.Generic.IEnumerable<MapPolygonFeature> features, RectLatLng bounds)
+        public static List<MapPolygonFeature> FilterPolygonsInBounds(
+            IEnumerable<MapPolygonFeature> features, RectLatLng bounds)
         {
-            var result = new System.Collections.Generic.List<MapPolygonFeature>();
+            var result = new List<MapPolygonFeature>();
             if (features == null || bounds.IsEmpty)
                 return result;
 

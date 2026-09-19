@@ -81,6 +81,9 @@ namespace MissionPlanner.Utilities.AviationLayers
         {
             if (_mapReady && _map != null)
             {
+                var radiusKm = Settings.Instance.GetDouble("aviationFetchRadiusKm", AviationRefreshPolicy.FetchRadiusKm);
+                var zone = AviationBounds.NormalizeForFetch(_map.ViewArea, ResolveFetchCenter(), _map.Zoom, radiusKm);
+                ApplyDisplayZone(zone);
                 RefreshOverlayGeometryOnly();
                 _map.Invalidate();
             }
@@ -304,37 +307,43 @@ namespace MissionPlanner.Utilities.AviationLayers
             if (tfrTask != null)
             {
                 var (data, snap) = tfrTask.Result;
-                data.Polygons = AviationBounds.FilterPolygonsInBounds(data.Polygons, zone);
-                if (data.Briefing != null)
-                    data.Briefing = data.Briefing.Where(b => BriefingInZone(b, zone)).ToList();
-                tfrResult = data;
+                var polys = AviationBounds.FilterPolygonsInBounds(data.Polygons, zone);
+                var briefingItems = data.Briefing == null
+                    ? new List<NotamBriefingItem>()
+                    : data.Briefing.Where(b => BriefingInZone(b, zone)).ToList();
+                tfrResult = new TfrFetchResult
+                {
+                    Json = data.Json,
+                    Polygons = polys,
+                    Briefing = briefingItems
+                };
                 tfrSnap = snap;
-                summary.TfrNotamCount = data.Polygons.Count;
+                summary.TfrNotamCount = polys.Count;
             }
 
             if (airspaceTask != null)
             {
                 var (data, snap) = airspaceTask.Result;
-                data.Polygons = AviationBounds.FilterPolygonsInBounds(data.Polygons, zone);
-                _stack.Airspace.SetFeatures(data.Polygons, snap);
+                var polys = AviationBounds.FilterPolygonsInBounds(data.Polygons, zone);
+                _stack.Airspace.SetFeatures(polys, snap);
             }
 
             if (uasTask != null)
             {
                 var (data, snap) = uasTask.Result;
-                data.Polygons = AviationBounds.FilterPolygonsInBounds(data.Polygons, zone);
-                uas = data;
-                summary.UasGridCells = data.Polygons.Count;
-                _stack.Uas.SetFeatures(data.Polygons, snap);
+                var polys = AviationBounds.FilterPolygonsInBounds(data.Polygons, zone);
+                uas = new PolygonFetchResult { Polygons = polys };
+                summary.UasGridCells = polys.Count;
+                _stack.Uas.SetFeatures(polys, snap);
             }
 
             if (specialTask != null)
             {
                 var (data, snap) = specialTask.Result;
-                data.Polygons = AviationBounds.FilterPolygonsInBounds(data.Polygons, zone);
-                special = data;
-                summary.SpecialUseAreas = data.Polygons.Count;
-                _stack.SpecialUse.SetFeatures(data.Polygons, snap);
+                var polys = AviationBounds.FilterPolygonsInBounds(data.Polygons, zone);
+                special = new PolygonFetchResult { Polygons = polys };
+                summary.SpecialUseAreas = polys.Count;
+                _stack.SpecialUse.SetFeatures(polys, snap);
             }
 
             if (metarTask != null)
@@ -348,19 +357,19 @@ namespace MissionPlanner.Utilities.AviationLayers
             if (sigmetTask != null)
             {
                 var (data, snap) = sigmetTask.Result;
-                data.Polygons = AviationBounds.FilterPolygonsInBounds(data.Polygons, zone);
-                sigmet = data;
-                summary.SigmetCount = data.Polygons.Count;
-                _stack.Sigmet.SetFeatures(data.Polygons, snap);
+                var polys = AviationBounds.FilterPolygonsInBounds(data.Polygons, zone);
+                sigmet = new PolygonFetchResult { Polygons = polys };
+                summary.SigmetCount = polys.Count;
+                _stack.Sigmet.SetFeatures(polys, snap);
             }
 
             if (gairmetTask != null)
             {
                 var (data, snap) = gairmetTask.Result;
-                data.Polygons = AviationBounds.FilterPolygonsInBounds(data.Polygons, zone);
-                gairmet = data;
-                summary.GairmetCount = data.Polygons.Count;
-                _stack.Gairmet.SetFeatures(data.Polygons, snap);
+                var polys = AviationBounds.FilterPolygonsInBounds(data.Polygons, zone);
+                gairmet = new PolygonFetchResult { Polygons = polys };
+                summary.GairmetCount = polys.Count;
+                _stack.Gairmet.SetFeatures(polys, snap);
             }
 
             if (pirepTask != null)
@@ -460,14 +469,9 @@ namespace MissionPlanner.Utilities.AviationLayers
         {
             if (item == null || zone.IsEmpty)
                 return true;
-            if (item.Polygon != null && item.Polygon.Count >= 3)
-                return AviationBounds.RingIntersects(zone, item.Polygon);
-            if (!item.Location.IsEmpty)
-            {
-                var pt = item.Location.ToPointLatLng();
-                return zone.Contains(pt);
-            }
-            return true;
+            if (item.Center.IsEmpty)
+                return true;
+            return zone.Contains(item.Center);
         }
 
         void DetachHandlers()
