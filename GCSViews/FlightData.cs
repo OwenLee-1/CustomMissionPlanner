@@ -194,7 +194,7 @@ namespace MissionPlanner.GCSViews
         private bool _mapOverlayCheckInternal;
         private Panel _notamBriefHost;
         private Controls.MapNotamBriefingPanel _notamBriefPanel;
-        private Controls.PreflightSummaryPanel _preflightSummaryPanel;
+        private Controls.PreFlight.PreflightSummaryPanel _preflightSummaryPanel;
         internal static string LastRestrictionBriefingSummary;
         private DateTime _lastPreflightSummaryRefresh = DateTime.MinValue;
 
@@ -910,7 +910,7 @@ namespace MissionPlanner.GCSViews
         private void SetupMissionChecklistSummary()
         {
             tabMissionChecklist.Controls.Remove(missionChecklistControl);
-            _preflightSummaryPanel = new Controls.PreflightSummaryPanel
+            _preflightSummaryPanel = new Controls.PreFlight.PreflightSummaryPanel
             {
                 Dock = DockStyle.Top,
                 Height = 220
