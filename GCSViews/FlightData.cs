@@ -721,9 +721,6 @@ namespace MissionPlanner.GCSViews
             specialUsepolygons = new GMapOverlay("specialuse");
             gMapControl1.Overlays.Add(specialUsepolygons);
 
-            ApplyMapOverlaySettings();
-            MapOverlayHelper.ApplyWeatherRadar(gMapControl1, MainV2.ShowWeather);
-
             kmlpolygons = new GMapOverlay("kmlpolygons");
             gMapControl1.Overlays.Add(kmlpolygons);
 
@@ -3934,6 +3931,8 @@ namespace MissionPlanner.GCSViews
             {
                 try
                 {
+                    ApplyMapOverlaySettings();
+
                     // 1. Apply MainH (left/right) split first
                     ApplySplitRatio(MainH, SettingsKeyMainH);
 

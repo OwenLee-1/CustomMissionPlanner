@@ -15,15 +15,21 @@ namespace MissionPlanner.Utilities
             if (map.MapProvider != resolved)
             {
                 map.MapProvider = resolved;
-                map.ReloadMap();
+                SafeReloadMap(map);
                 return;
             }
 
             if (map.MapProvider is MapProviderWithTileOverlay overlay)
             {
                 overlay.WeatherRadarEnabled = enabled;
-                map.ReloadMap();
+                SafeReloadMap(map);
             }
+        }
+
+        static void SafeReloadMap(GMapControl map)
+        {
+            if (map?.Core != null && map.Core.IsStarted)
+                map.ReloadMap();
         }
 
         /// <summary>
