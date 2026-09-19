@@ -50,6 +50,8 @@ namespace MissionPlanner.Utilities
             public Action<Action> InvokeOnUi { get; set; }
             public Action<List<NotamBriefingItem>> BriefingUpdated { get; set; }
             public Action<RestrictionBriefingSummary> SummaryUpdated { get; set; }
+            /// <summary>Called on UI thread after overlay geometry is updated (e.g. map Invalidate).</summary>
+            public Action MapInvalidate { get; set; }
         }
 
         public class RestrictionBriefingSummary
@@ -75,8 +77,7 @@ namespace MissionPlanner.Utilities
 
             lock (RefreshLock)
             {
-                if ((DateTime.UtcNow - _lastRefresh).TotalSeconds < 30 &&
-                    _lastBounds.Contains(viewArea))
+                if (ShouldSkipRefresh(viewArea))
                     return;
 
                 _lastRefresh = DateTime.UtcNow;
@@ -160,6 +161,9 @@ namespace MissionPlanner.Utilities
 
                     if (summaryUpdated != null)
                         invoke(() => summaryUpdated(summary));
+
+                    if (options.MapInvalidate != null)
+                        invoke(() => options.MapInvalidate());
                 }
                 catch (OperationCanceledException)
                 {
@@ -275,6 +279,7 @@ namespace MissionPlanner.Utilities
                     }
 
                     overlay.IsVisibile = visible;
+                    overlay.ForceUpdate();
                 });
 
                 return features.Count;
@@ -314,6 +319,7 @@ namespace MissionPlanner.Utilities
                 }
 
                 overlay.IsVisibile = visible;
+                overlay.ForceUpdate();
             });
         }
 
@@ -501,15 +507,52 @@ namespace MissionPlanner.Utilities
             return result;
         }
 
+        private static bool ShouldSkipRefresh(RectLatLng viewArea)
+        {
+            if (_lastBounds.IsEmpty)
+                return false;
+
+            if ((DateTime.UtcNow - _lastRefresh).TotalSeconds >= 30)
+                return false;
+
+            // Panned to an area not covered by the last fetch.
+            if (!_lastBounds.Contains(viewArea))
+                return false;
+
+            // Zoomed in: visible area is much smaller than last fetch — need higher-detail data.
+            var viewSize = Math.Abs(viewArea.WidthLng * viewArea.HeightLat);
+            var lastSize = Math.Abs(_lastBounds.WidthLng * _lastBounds.HeightLat);
+            if (lastSize > 0 && viewSize < lastSize * 0.4)
+                return false;
+
+            return true;
+        }
+
+        private static int MaxFeaturesForBounds(RectLatLng bounds)
+        {
+            var area = Math.Abs(bounds.WidthLng * bounds.HeightLat);
+            if (area <= 0.0001)
+                return 2500;
+            if (area <= 0.01)
+                return 2000;
+            if (area <= 0.25)
+                return 1000;
+            if (area <= 2.0)
+                return 750;
+            return 500;
+        }
+
         private static string BuildWfsUrl(string serviceUrl, string typeName, RectLatLng bounds)
         {
             var bbox = string.Format(CultureInfo.InvariantCulture,
                 "{0},{1},{2},{3},EPSG:4326",
                 bounds.Left, bounds.Bottom, bounds.Right, bounds.Top);
 
+            var maxFeatures = MaxFeaturesForBounds(bounds);
+
             return string.Format(CultureInfo.InvariantCulture,
-                "{0}?service=WFS&version=1.0.0&request=GetFeature&typeName={1}&outputFormat=application/json&bbox={2}&maxFeatures=500",
-                serviceUrl.TrimEnd('/'), Uri.EscapeDataString(typeName), Uri.EscapeDataString(bbox));
+                "{0}?service=WFS&version=1.0.0&request=GetFeature&typeName={1}&outputFormat=application/json&bbox={2}&maxFeatures={3}",
+                serviceUrl.TrimEnd('/'), Uri.EscapeDataString(typeName), Uri.EscapeDataString(bbox), maxFeatures);
         }
 
         private static string BuildArcGisQueryUrl(string layerUrl, RectLatLng bounds, int maxFeatures)
@@ -665,6 +708,7 @@ namespace MissionPlanner.Utilities
                 }
 
                 overlay.IsVisibile = visible;
+                overlay.ForceUpdate();
             });
         }
 
@@ -678,6 +722,7 @@ namespace MissionPlanner.Utilities
                 overlay.Polygons.Clear();
                 overlay.Markers.Clear();
                 overlay.IsVisibile = visible;
+                overlay.ForceUpdate();
             });
         }
 

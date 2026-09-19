@@ -68,9 +68,14 @@ namespace MissionPlanner.Maps
             if (string.IsNullOrEmpty(path))
                 return null;
 
+            var tileZoom = Math.Min(zoom, MaxZoom);
+            var shift = zoom - tileZoom;
+            var tileX = pos.X >> shift;
+            var tileY = pos.Y >> shift;
+
             var url = string.Format(CultureInfo.InvariantCulture,
                 "{0}{1}/256/{2}/{3}/{4}/2/1_1.png",
-                _radarHost, path, zoom, pos.X, pos.Y);
+                _radarHost, path, tileZoom, tileX, tileY);
 
             return GetTileImageUsingHttp(url);
         }

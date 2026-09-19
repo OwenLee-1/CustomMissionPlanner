@@ -7412,6 +7412,12 @@ namespace MissionPlanner.GCSViews
                             BeginInvoke((Action)action);
                         else
                             action();
+                    },
+                    MapInvalidate = () =>
+                    {
+                        if (gMapControl1 == null)
+                            return;
+                        gMapControl1.Invalidate();
                     }
                 });
         }
