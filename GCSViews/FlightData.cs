@@ -192,6 +192,7 @@ namespace MissionPlanner.GCSViews
         private CheckBox _chkMapSpecialUse;
         private CheckBox _chkMapNoFly;
         private bool _mapOverlayCheckInternal;
+        private MapOverlayController _mapOverlayController;
         private Panel _notamBriefHost;
         private Controls.MapNotamBriefingPanel _notamBriefPanel;
         private Controls.PreFlight.PreflightSummaryPanel _preflightSummaryPanel;
@@ -721,6 +722,11 @@ namespace MissionPlanner.GCSViews
             specialUsepolygons = new GMapOverlay("specialuse");
             gMapControl1.Overlays.Add(specialUsepolygons);
 
+            _mapOverlayController = new MapOverlayController(
+                BuildRestrictionOverlays(),
+                BuildRestrictionRefreshOptions);
+            _mapOverlayController.Attach(gMapControl1);
+
             kmlpolygons = new GMapOverlay("kmlpolygons");
             gMapControl1.Overlays.Add(kmlpolygons);
 
@@ -1082,6 +1088,57 @@ namespace MissionPlanner.GCSViews
             {
                 _mapOverlayCheckInternal = false;
             }
+        }
+
+        private FlightRestrictionsOverlay.RefreshOptions BuildRestrictionRefreshOptions()
+        {
+            var showBriefing = ShouldShowRestrictionBriefing();
+            return new FlightRestrictionsOverlay.RefreshOptions
+            {
+                LoadTfr = MainV2.ShowTFR,
+                LoadAirspace = MainV2.ShowAirspace,
+                LoadUasFacilityMap = MainV2.ShowUasFacilityMap,
+                LoadNotams = MainV2.ShowNotams,
+                LoadSpecialUseAirspace = MainV2.ShowSpecialUseAirspace,
+                LoadBriefing = showBriefing && (MainV2.ShowTFR || MainV2.ShowNotams),
+                BriefingUpdated = showBriefing
+                    ? (Action<List<NotamBriefingItem>>)(list => _notamBriefPanel?.SetBriefingItems(list))
+                    : null,
+                SummaryUpdated = showBriefing
+                    ? (Action<FlightRestrictionsOverlay.RestrictionBriefingSummary>)(s =>
+                    {
+                        _notamBriefPanel?.SetSummary(s);
+                        var parts = new List<string>();
+                        if (s.TfrNotamCount > 0)
+                            parts.Add($"{s.TfrNotamCount} TFR/NOTAM in view");
+                        if (s.UasGridCells > 0)
+                            parts.Add($"{s.UasGridCells} LAANC cells");
+                        if (s.SpecialUseAreas > 0)
+                            parts.Add($"{s.SpecialUseAreas} special-use");
+                        LastRestrictionBriefingSummary = parts.Count == 0 ? null : string.Join(" · ", parts);
+                    })
+                    : null,
+                InvokeOnUi = action =>
+                {
+                    if (InvokeRequired)
+                        BeginInvoke((Action)action);
+                    else
+                        action();
+                },
+                MapInvalidate = () =>
+                {
+                    if (gMapControl1 == null)
+                        return;
+                    gMapControl1.Invalidate();
+                    foreach (var o in new[]
+                             {
+                                 tfrpolygons, airspacepolygons, uasFacilitypolygons, notamMarkers, specialUsepolygons
+                             })
+                    {
+                        o?.ForceUpdate();
+                    }
+                }
+            };
         }
 
         private static FlightRestrictionsOverlay.OverlaySet BuildRestrictionOverlays()
@@ -3931,6 +3988,7 @@ namespace MissionPlanner.GCSViews
             {
                 try
                 {
+                    _mapOverlayController?.TryMarkMapReady();
                     ApplyMapOverlaySettings();
 
                     // 1. Apply MainH (left/right) split first
@@ -4246,7 +4304,6 @@ namespace MissionPlanner.GCSViews
             }
 
             center.Position = gMapControl1.Position;
-            RefreshFlightRestrictionOverlays();
         }
 
         void gMapControl1_OnMarkerEnter(GMapMarker item)
@@ -4264,7 +4321,6 @@ namespace MissionPlanner.GCSViews
             center.Position = point;
 
             UpdateOverlayVisibility();
-            RefreshFlightRestrictionOverlays();
         }
 
         private void gMapControl1_Resize(object sender, EventArgs e)
@@ -7363,81 +7419,15 @@ namespace MissionPlanner.GCSViews
 
         public void RefreshFlightRestrictionOverlays()
         {
-            if (gMapControl1?.ViewArea == null)
-                return;
-
             UpdateNotamBriefingPanelVisibility();
-
-            var anyRestrictionLayer = MainV2.ShowTFR || MainV2.ShowAirspace || MainV2.ShowUasFacilityMap ||
-                                    MainV2.ShowNotams || MainV2.ShowSpecialUseAirspace;
-
-            if (!anyRestrictionLayer)
-            {
-                FlightRestrictionsOverlay.SetOverlayVisibility(BuildRestrictionOverlays(), false, false, false, false,
-                    false);
-                return;
-            }
-
-            var showBriefing = ShouldShowRestrictionBriefing();
-            FlightRestrictionsOverlay.RequestRefresh(gMapControl1.ViewArea, BuildRestrictionOverlays(),
-                new FlightRestrictionsOverlay.RefreshOptions
-                {
-                    LoadTfr = MainV2.ShowTFR,
-                    LoadAirspace = MainV2.ShowAirspace,
-                    LoadUasFacilityMap = MainV2.ShowUasFacilityMap,
-                    LoadNotams = MainV2.ShowNotams,
-                    LoadSpecialUseAirspace = MainV2.ShowSpecialUseAirspace,
-                    LoadBriefing = showBriefing && (MainV2.ShowTFR || MainV2.ShowNotams),
-                    BriefingUpdated = showBriefing
-                        ? (Action<List<NotamBriefingItem>>)(list => _notamBriefPanel?.SetBriefingItems(list))
-                        : null,
-                    SummaryUpdated = showBriefing
-                        ? (Action<FlightRestrictionsOverlay.RestrictionBriefingSummary>)(s =>
-                        {
-                            _notamBriefPanel?.SetSummary(s);
-                            var parts = new List<string>();
-                            if (s.TfrNotamCount > 0)
-                                parts.Add($"{s.TfrNotamCount} TFR/NOTAM in view");
-                            if (s.UasGridCells > 0)
-                                parts.Add($"{s.UasGridCells} LAANC cells");
-                            if (s.SpecialUseAreas > 0)
-                                parts.Add($"{s.SpecialUseAreas} special-use");
-                            LastRestrictionBriefingSummary = parts.Count == 0 ? null : string.Join(" · ", parts);
-                        })
-                        : null,
-                    InvokeOnUi = action =>
-                    {
-                        if (InvokeRequired)
-                            BeginInvoke((Action)action);
-                        else
-                            action();
-                    },
-                    MapInvalidate = () =>
-                    {
-                        if (gMapControl1 == null)
-                            return;
-                        gMapControl1.Invalidate();
-                    }
-                });
+            _mapOverlayController?.ScheduleRestrictionRefresh(forceImmediate: true);
         }
 
         public static void ApplyMapOverlaySettings()
         {
-            FlightRestrictionsOverlay.SetOverlayVisibility(BuildRestrictionOverlays(), MainV2.ShowTFR,
-                MainV2.ShowAirspace, MainV2.ShowUasFacilityMap, MainV2.ShowNotams, MainV2.ShowSpecialUseAirspace);
-
             instance?.UpdateNotamBriefingPanelVisibility();
-
-            NoFly.NoFly.SetZonesVisible(MainV2.ShowNoFly);
-
-            if (mymap != null)
-                MapOverlayHelper.ApplyWeatherRadar(mymap, MainV2.ShowWeather);
-
-            if (FlightPlanner.instance?.MainMap != null)
-                MapOverlayHelper.ApplyWeatherRadar(FlightPlanner.instance.MainMap, MainV2.ShowWeather);
-
+            instance?._mapOverlayController?.ApplyAllSettings();
             instance?.SyncMapOverlayCheckboxUi();
-            instance?.RefreshFlightRestrictionOverlays();
         }
 
         private void updatePlayPauseButton(bool playing)

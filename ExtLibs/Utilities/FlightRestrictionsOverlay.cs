@@ -77,12 +77,9 @@ namespace MissionPlanner.Utilities
 
             lock (RefreshLock)
             {
-                if (ShouldSkipRefresh(viewArea))
-                    return;
-
                 _lastRefresh = DateTime.UtcNow;
                 _lastBounds = viewArea;
-                _lastBounds.Inflate(0.15, 0.15);
+                _lastBounds.Inflate(0.2, 0.2);
 
                 _refreshCts?.Cancel();
                 _refreshCts = new CancellationTokenSource();
@@ -507,27 +504,6 @@ namespace MissionPlanner.Utilities
             return result;
         }
 
-        private static bool ShouldSkipRefresh(RectLatLng viewArea)
-        {
-            if (_lastBounds.IsEmpty)
-                return false;
-
-            if ((DateTime.UtcNow - _lastRefresh).TotalSeconds >= 30)
-                return false;
-
-            // Panned to an area not covered by the last fetch.
-            if (!_lastBounds.Contains(viewArea))
-                return false;
-
-            // Zoomed in: visible area is much smaller than last fetch — need higher-detail data.
-            var viewSize = Math.Abs(viewArea.WidthLng * viewArea.HeightLat);
-            var lastSize = Math.Abs(_lastBounds.WidthLng * _lastBounds.HeightLat);
-            if (lastSize > 0 && viewSize < lastSize * 0.4)
-                return false;
-
-            return true;
-        }
-
         private static int MaxFeaturesForBounds(RectLatLng bounds)
         {
             var area = Math.Abs(bounds.WidthLng * bounds.HeightLat);
@@ -702,7 +678,8 @@ namespace MissionPlanner.Utilities
                     {
                         Fill = new SolidBrush(fill),
                         Stroke = new Pen(stroke, 2),
-                        Tag = feat.ToolTip
+                        Tag = feat.ToolTip,
+                        IsVisible = true
                     };
                     overlay.Polygons.Add(poly);
                 }
