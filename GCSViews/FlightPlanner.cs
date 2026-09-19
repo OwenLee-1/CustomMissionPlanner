@@ -2303,6 +2303,7 @@ namespace MissionPlanner.GCSViews
                 MainMap.MapProvider = selected;
                 if (FlightData.mymap != null)
                     FlightData.mymap.MapProvider = selected;
+                FlightData.SyncFlightMapZoomLimits();
                 Settings.Instance["MapType"] = comboBoxMapType.Text;
             }
             catch (Exception ex)

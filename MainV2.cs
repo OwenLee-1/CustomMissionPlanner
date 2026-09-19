@@ -11,6 +11,7 @@ using MissionPlanner.GCSViews.ConfigurationView;
 using MissionPlanner.Log;
 using MissionPlanner.Maps;
 using MissionPlanner.Utilities;
+using MissionPlanner.Utilities.AviationLayers;
 
 using MissionPlanner.Warnings;
 using SkiaSharp;
@@ -380,6 +381,19 @@ namespace MissionPlanner
         public static bool ShowSpecialUseAirspace { get; set; }
 
         public static bool ShowNoFly { get; set; } = true;
+
+        public static bool ShowMetar { get; set; }
+
+        public static bool ShowSigmet { get; set; }
+
+        public static bool ShowGairmet { get; set; }
+
+        public static bool ShowPirep { get; set; }
+
+        public static bool ShowFlightSafety { get; set; } = true;
+
+        /// <summary>Flight Data NOTAM/TFR sidebar (independent of layer toggles).</summary>
+        public static bool ShowNotamBriefPanel { get; set; } = true;
 
         private Utilities.adsb _adsb;
 
@@ -917,9 +931,33 @@ namespace MissionPlanner
             ShowNotams = Settings.Instance.GetBoolean("shownotams", false);
             ShowSpecialUseAirspace = Settings.Instance.GetBoolean("showspecialuse", false);
             ShowNoFly = Settings.Instance.GetBoolean("ShowNoFly", true);
+            ShowMetar = Settings.Instance.GetBoolean("showmetar", false);
+            ShowSigmet = Settings.Instance.GetBoolean("showsigmet", false);
+            ShowGairmet = Settings.Instance.GetBoolean("showgairmet", false);
+            ShowPirep = Settings.Instance.GetBoolean("showpirep", false);
+            ShowFlightSafety = Settings.Instance.GetBoolean("showflightsafety", true);
+            ShowNotamBriefPanel = Settings.Instance.GetBoolean("showNotamBriefPanel", true);
 
             if (Settings.Instance["airspaceWfsUrl"] != null)
-                FlightRestrictionsOverlay.AirspaceWfsUrl = Settings.Instance["airspaceWfsUrl"];
+            {
+                var airspaceUrl = Settings.Instance["airspaceWfsUrl"];
+                if (OpenAipExportAirspace.IsLegacyDeadWfsUrl(airspaceUrl))
+                {
+                    AviationFetch.UseOpenAipExport = true;
+                    AviationFetch.AirspaceWfsUrl = "";
+                    FlightRestrictionsOverlay.AirspaceWfsUrl = "";
+                }
+                else
+                {
+                    FlightRestrictionsOverlay.AirspaceWfsUrl = airspaceUrl;
+                    AviationFetch.AirspaceWfsUrl = airspaceUrl;
+                    AviationFetch.UseOpenAipExport = false;
+                }
+            }
+            else
+            {
+                AviationFetch.UseOpenAipExport = true;
+            }
 
             if (Settings.Instance["enableadsb"] != null)
             {
@@ -1173,18 +1211,17 @@ namespace MissionPlanner
 #endif
 #endif
 
-            if (Program.IconFile != null)
+            try
             {
-                this.Icon = Icon.FromHandle(((Bitmap) Program.IconFile).GetHicon());
+                var appIcon = BrandLogoHelper.LoadAppIcon();
+                if (appIcon != null)
+                    this.Icon = appIcon;
+            }
+            catch
+            {
             }
 
-            var logoImage = ThemeManager.IsDarkTheme
-                ? Properties.Resources.TD_MP
-                : Properties.Resources.TD_MP_light;
-            var logoWidth = 120;
-            var logoHeight = Math.Max(1, (int)Math.Round(logoImage.Height * logoWidth / (double)logoImage.Width));
-            MenuArduPilot.Image = new Bitmap(logoImage, logoWidth, logoHeight);
-            MenuArduPilot.Width = MenuArduPilot.Image.Width;
+            BrandLogoHelper.ApplyMenuLogo(MenuArduPilot, ThemeManager.IsDarkTheme);
 
             Application.DoEvents();
 
@@ -3434,6 +3471,25 @@ namespace MissionPlanner
                 log.Info("show FlightData... Done");
                 MainMenu_ItemClicked(this, new ToolStripItemClickedEventArgs(MenuFlightData));
             }
+
+            // Stage 2 / Stage 3 selection after UI is up
+            BeginInvoke(new Action(() =>
+            {
+                try
+                {
+                    if (Settings.Instance.GetBoolean("preflight_prompt_on_startup", true))
+                    {
+                        using (var dlg = new MissionPlanner.Controls.PreFlight.FlightStageMenuForm())
+                            dlg.ShowDialog(this);
+                    }
+
+                    FlightData?.ApplyStartupPreflightSelection();
+                }
+                catch (Exception ex)
+                {
+                    log.Error("Startup stage prompt failed", ex);
+                }
+            }));
 
             // for long running tasks using own threads.
             // for short use threadpool

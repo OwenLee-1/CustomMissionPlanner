@@ -1,0 +1,6 @@
+# One vehicle name per line (used at startup picker).
+# Lines starting with # are ignored.
+VFS Copter 1
+VFS Copter 2
+VFS Fixed Wing 1
+Training Quad

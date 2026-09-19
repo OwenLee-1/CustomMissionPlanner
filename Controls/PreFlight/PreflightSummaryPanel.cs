@@ -11,12 +11,62 @@ namespace MissionPlanner.Controls.PreFlight
     {
         private readonly Label _lblReady;
         private readonly TableLayoutPanel _table;
+        private readonly Button _btnStage;
+        private readonly Button _btnMissionConfirm;
+        private readonly Button _btnAffirm;
         private DateTime _lastPrearmRequest = DateTime.MinValue;
+
+        public event Action FlightStageRequested;
+        public event Action MissionConfirmRequested;
+        public event Action AffirmArmRequested;
 
         public PreflightSummaryPanel()
         {
             BackColor = Color.FromArgb(32, 32, 32);
             Padding = new Padding(8);
+
+            var toolbar = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Top,
+                Height = 32,
+                FlowDirection = FlowDirection.LeftToRight,
+                WrapContents = false,
+                BackColor = BackColor
+            };
+
+            _btnStage = new Button
+            {
+                Text = "Flight stage…",
+                AutoSize = true,
+                FlatStyle = FlatStyle.Flat,
+                ForeColor = Color.White,
+                BackColor = Color.FromArgb(55, 55, 60)
+            };
+            _btnStage.Click += (s, e) => FlightStageRequested?.Invoke();
+
+            _btnMissionConfirm = new Button
+            {
+                Text = "Mission confirm…",
+                AutoSize = true,
+                FlatStyle = FlatStyle.Flat,
+                ForeColor = Color.White,
+                BackColor = Color.FromArgb(55, 55, 60)
+            };
+            _btnMissionConfirm.Click += (s, e) => MissionConfirmRequested?.Invoke();
+
+            _btnAffirm = new Button
+            {
+                Text = "All green — affirm arm",
+                AutoSize = true,
+                FlatStyle = FlatStyle.Flat,
+                ForeColor = Color.White,
+                BackColor = Color.FromArgb(40, 120, 60)
+            };
+            _btnAffirm.Click += (s, e) => AffirmArmRequested?.Invoke();
+
+            toolbar.Controls.Add(_btnStage);
+            toolbar.Controls.Add(_btnMissionConfirm);
+            toolbar.Controls.Add(_btnAffirm);
 
             _lblReady = new Label
             {
@@ -39,6 +89,7 @@ namespace MissionPlanner.Controls.PreFlight
 
             Controls.Add(_table);
             Controls.Add(_lblReady);
+            Controls.Add(toolbar);
         }
 
         public void RefreshSummary(CheckListControl checklist)
@@ -65,6 +116,21 @@ namespace MissionPlanner.Controls.PreFlight
 
             RequestPrearmChecksIfNeeded(cs.prearmstatus);
 
+            var stage = FlightPreflightSession.Stage;
+            var req = stage != FlightOperationStage.Unselected
+                ? FlightPreflightProfiles.GetRequirements(stage)
+                : null;
+
+            AddRow("Flight stage", stage != FlightOperationStage.Unselected,
+                stage == FlightOperationStage.Unselected
+                    ? "Not selected — use Flight Stage tab"
+                    : FlightPreflightProfiles.GetVehicleRequirementsSummary(stage));
+
+            AddRow("Arm affirm", FlightPreflightSession.ArmAffirmedOverride,
+                FlightPreflightSession.ArmAffirmedOverride
+                    ? "All green affirmed — GCS arm blockers bypassed"
+                    : "Not affirmed (use Flight Stage tab or button above)");
+
             AddRow("Telemetry", true, "Connected · GCS link " + cs.linkqualitygcs + "%");
 
             var gpsOk = cs.gpsstatus >= 3 && cs.satcount >= 6 && cs.gpshdop > 0 && cs.gpshdop <= 2.5f;
@@ -75,6 +141,28 @@ namespace MissionPlanner.Controls.PreFlight
 
             var battOk = cs.battery_voltage >= 1;
             AddRow("Battery", battOk, cs.battery_voltage.ToString("0.0") + " V");
+
+            if (req != null)
+            {
+                var sensors = PreflightTelemetryChecks.EvaluateSensors(cs, req);
+                AddRow("Sensors", sensors.Ok, sensors.Summary);
+
+                var radio = PreflightTelemetryChecks.EvaluateRadio(cs, req);
+                AddRow("Radio", radio.Ok, radio.Summary);
+
+                var est = MissionFlightEstimate.Compute();
+                AddRow("Est. flight", est.WaypointCount > 1, est.Summary);
+
+                var homePt = cs.Base != PointLatLngAlt.Zero ? cs.Base : (PointLatLngAlt)cs.Location;
+                var adsb = PreflightTelemetryChecks.EvaluateAdsbTraffic(homePt, req, MainV2.instance?.EnableADSB == true);
+                AddRow("ADS-B area", adsb.Ok, adsb.Summary);
+
+                var fp = PreflightTelemetryChecks.BuildMissionFingerprint();
+                var confirmed = FlightPreflightSession.IsMissionConfirmationCurrent(fp, req.RequirePicSignOff,
+                    req.RequireGcoSignOff);
+                AddRow("PIC/GCO confirm", !req.RequireMissionConfirm || confirmed,
+                    confirmed ? "Mission confirmed for current plan" : "Use Mission confirm… before arming");
+            }
 
             var checklistOk = checklist == null || checklist.ArmingChecksPassed;
             var pending = checklist?.CheckListItems?.Count(i => i.IsArmingBlocker && !i.checkCond(i)) ?? 0;

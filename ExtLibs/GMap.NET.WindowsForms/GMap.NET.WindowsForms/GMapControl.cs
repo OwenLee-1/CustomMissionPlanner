@@ -137,6 +137,11 @@ namespace GMap.NET.WindowsForms
         public string EmptyTileText = "We are sorry, but we don't\nhave imagery at this zoom\nlevel for this region.";
 
         /// <summary>
+        /// When false, missing base-map tiles are filled with <see cref="EmptyTileColor"/> only (no error text).
+        /// </summary>
+        public bool ShowEmptyTileMessages { get; set; } = false;
+
+        /// <summary>
         /// pen for empty tile borders
         /// </summary>
 #if !PocketPC
@@ -750,24 +755,32 @@ namespace GMap.NET.WindowsForms
                                             new RectangleF(Core.tileRect.X, Core.tileRect.Y, Core.tileRect.Width,
                                                 Core.tileRect.Height));
 
-                                        g.DrawString("Exception: " + ex.Message, MissingDataFont, Brushes.Red,
-                                            new RectangleF(Core.tileRect.X + 11, Core.tileRect.Y + 11,
-                                                Core.tileRect.Width - 11, Core.tileRect.Height - 11));
+                                        if (ShowEmptyTileMessages)
+                                        {
+                                            g.DrawString("Exception: " + ex.Message, MissingDataFont, Brushes.Red,
+                                                new RectangleF(Core.tileRect.X + 11, Core.tileRect.Y + 11,
+                                                    Core.tileRect.Width - 11, Core.tileRect.Height - 11));
 
-                                        g.DrawString(EmptyTileText, MissingDataFont, Brushes.Blue,
-                                            new RectangleF(Core.tileRect.X, Core.tileRect.Y, Core.tileRect.Width,
-                                                Core.tileRect.Height), CenterFormat);
+                                            g.DrawString(EmptyTileText, MissingDataFont, Brushes.Blue,
+                                                new RectangleF(Core.tileRect.X, Core.tileRect.Y, Core.tileRect.Width,
+                                                    Core.tileRect.Height), CenterFormat);
 
+                                            g.DrawRectangle(EmptyTileBorders, (int) Core.tileRect.X, (int) Core.tileRect.Y,
+                                                (int) Core.tileRect.Width, (int) Core.tileRect.Height);
+                                        }
 #else
                               g.FillRectangle(EmptytileBrush, new System.Drawing.Rectangle((int) Core.tileRect.X, (int) Core.tileRect.Y, (int) Core.tileRect.Width, (int) Core.tileRect.Height));
 
+                              if (ShowEmptyTileMessages)
+                              {
                               g.DrawString("Exception: " + ex.Message, MissingDataFont, TileGridMissingTextBrush, new RectangleF(Core.tileRect.X + 11, Core.tileRect.Y + 11, Core.tileRect.Width - 11, Core.tileRect.Height - 11));
 
                               g.DrawString(EmptyTileText, MissingDataFont, TileGridMissingTextBrush, new RectangleF(Core.tileRect.X, Core.tileRect.Y + Core.tileRect.Width / 2 + (ShowTileGridLines ? 11 : -22), Core.tileRect.Width, Core.tileRect.Height), BottomFormat);
-#endif
 
                                         g.DrawRectangle(EmptyTileBorders, (int) Core.tileRect.X, (int) Core.tileRect.Y,
                                             (int) Core.tileRect.Width, (int) Core.tileRect.Height);
+                              }
+#endif
                                     }
                                 }
                             }

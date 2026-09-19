@@ -26,7 +26,33 @@ namespace MissionPlanner.Maps
 
         private MapProviderWithTileOverlay()
         {
-            MaxZoom = 24;
+            MaxZoom = 17;
+            MinZoom = 1;
+        }
+
+        /// <summary>Tile pyramid limit for the base map (not the radar overlay).</summary>
+        public static int CapBaseProviderMaxZoom(GMapProvider baseProvider)
+        {
+            if (baseProvider == null)
+                return 17;
+
+            int max;
+            if (baseProvider.MaxZoom.HasValue)
+                max = baseProvider.MaxZoom.Value;
+            else
+            {
+                var name = baseProvider.Name ?? "";
+                if (name.IndexOf("Satellite", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    name.IndexOf("Google", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    name.IndexOf("Hybrid", StringComparison.OrdinalIgnoreCase) >= 0)
+                    max = 17;
+                else if (name.IndexOf("Bing", StringComparison.OrdinalIgnoreCase) >= 0)
+                    max = 17;
+                else
+                    max = 16;
+            }
+
+            return Math.Min(17, Math.Max(1, max));
         }
 
         readonly Guid id = new Guid("B7D2A4E8-1C3F-4A6B-9D0E-2F8C5B714639");
@@ -89,8 +115,9 @@ namespace MissionPlanner.Maps
 
             Instance.BaseProvider = baseProvider;
             Instance.WeatherRadarEnabled = true;
-            if (weatherRadar)
-                RainViewerRadarProvider.EnsureRadarPath();
+            Instance.MaxZoom = CapBaseProviderMaxZoom(baseProvider);
+            Instance.MinZoom = baseProvider.MinZoom;
+            RainViewerRadarProvider.EnsureRadarPath();
             return Instance;
         }
 

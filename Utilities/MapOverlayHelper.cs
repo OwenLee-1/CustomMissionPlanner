@@ -1,3 +1,5 @@
+using System;
+using System.Windows.Forms;
 using GMap.NET.MapProviders;
 using GMap.NET.WindowsForms;
 using MissionPlanner.Maps;
@@ -16,13 +18,33 @@ namespace MissionPlanner.Utilities
             {
                 map.MapProvider = resolved;
                 SafeReloadMap(map);
-                return;
             }
-
-            if (map.MapProvider is MapProviderWithTileOverlay overlay)
+            else if (map.MapProvider is MapProviderWithTileOverlay overlay)
             {
                 overlay.WeatherRadarEnabled = enabled;
+                if (enabled)
+                    RainViewerRadarProvider.EnsureRadarPath();
                 SafeReloadMap(map);
+            }
+
+            if (enabled)
+            {
+                System.Threading.Tasks.Task.Run(() => RainViewerRadarProvider.EnsureRadarPath())
+                    .ContinueWith(_ =>
+                    {
+                        try
+                        {
+                            if (map.IsDisposed)
+                                return;
+                            if (map.InvokeRequired)
+                                map.BeginInvoke((Action)(() => map.Invalidate()));
+                            else
+                                map.Invalidate();
+                        }
+                        catch
+                        {
+                        }
+                    });
             }
         }
 

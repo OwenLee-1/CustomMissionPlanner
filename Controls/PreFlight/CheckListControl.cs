@@ -1,7 +1,6 @@
 using MissionPlanner.Utilities;
 using System;
 using System.Linq;
-using System.Linq;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
@@ -280,6 +279,27 @@ namespace MissionPlanner.Controls.PreFlight
             return gb;
         }
 
+        /// <summary>Tick all manual arming-blocker checklist items (used by debug affirm).</summary>
+        public void AffirmAllManualArmingItems()
+        {
+            lock (CheckListItems)
+            {
+                foreach (var item in CheckListItems)
+                {
+                    if (item == null || !item.IsArmingBlocker)
+                        continue;
+                    if (item.ConditionType == CheckListItem.Conditional.NONE)
+                        item.ManualChecked = true;
+                }
+
+                rowcount = 0;
+            }
+
+            SaveConfig();
+            Draw();
+            UpdateDisplay();
+        }
+
         public void LoadConfig()
         {
             string loadfile = configfile;
@@ -306,6 +326,24 @@ namespace MissionPlanner.Controls.PreFlight
             {
                 CheckListItems = (List<CheckListItem>)reader.Deserialize(sr);
             }
+        }
+
+        /// <summary>Load vehicle/stage-specific checklist template from default XML.</summary>
+        public void ApplyStageChecklist(FlightOperationStage stage)
+        {
+            if (stage == FlightOperationStage.Unselected)
+                return;
+
+            var path = FlightPreflightProfiles.GetChecklistDefaultPath(stage,
+                FlightPreflightProfiles.GetVehicleProfileKey());
+            if (!File.Exists(path))
+                return;
+
+            configfiledefault = path;
+            LoadConfig();
+            lock (CheckListItems)
+                rowcount = 0;
+            Draw();
         }
 
         public void SaveConfig()

@@ -10,6 +10,7 @@ using GMap.NET;
 using GMap.NET.WindowsForms;
 using GMap.NET.WindowsForms.Markers;
 using log4net;
+using MissionPlanner.Utilities.AviationLayers;
 using Newtonsoft.Json.Linq;
 
 namespace MissionPlanner.Utilities
@@ -29,10 +30,20 @@ namespace MissionPlanner.Utilities
         private const string DodUasRestrictionUrl =
             "https://services6.arcgis.com/ssFJjBXIUyZDrSYZ/arcgis/rest/services/DoD_Mar_13/FeatureServer/0";
 
-        public static string AirspaceWfsUrl { get; set; } =
-            "https://map.openaip.org/geoserver/openaip/ows";
+        public static string AirspaceWfsUrl { get; set; } = "";
 
         public static string AirspaceLayerName { get; set; } = "openaip:airspaces";
+
+        static FlightRestrictionsOverlay()
+        {
+            SyncAirspaceUrl();
+        }
+
+        static void SyncAirspaceUrl()
+        {
+            AviationFetch.AirspaceWfsUrl = AirspaceWfsUrl;
+            AviationFetch.AirspaceLayerName = AirspaceLayerName;
+        }
 
         private static readonly object RefreshLock = new object();
         private static DateTime _lastRefresh = DateTime.MinValue;
@@ -78,8 +89,7 @@ namespace MissionPlanner.Utilities
             lock (RefreshLock)
             {
                 _lastRefresh = DateTime.UtcNow;
-                _lastBounds = viewArea;
-                _lastBounds.Inflate(0.2, 0.2);
+                _lastBounds = InflateFetchBounds(viewArea);
 
                 _refreshCts?.Cancel();
                 _refreshCts = new CancellationTokenSource();
@@ -113,8 +123,8 @@ namespace MissionPlanner.Utilities
                     }
 
                     if (loadTfr)
-                        ApplyPolygons(overlays.Tfr, tfrFeatures, Color.FromArgb(40, Color.OrangeRed), Color.OrangeRed,
-                            "TFR", true, invoke);
+                        ApplyPolygons(overlays.Tfr, tfrFeatures, Color.FromArgb(75, Color.OrangeRed), Color.OrangeRed,
+                            3f, "TFR", true, invoke);
                     else
                         ClearOverlay(overlays.Tfr, false, invoke);
 
@@ -189,7 +199,7 @@ namespace MissionPlanner.Utilities
             cancel.ThrowIfCancellationRequested();
 
             var features = ParseGeoJsonFeatures(json);
-            ApplyPolygons(overlay, features, Color.FromArgb(40, Color.OrangeRed), Color.OrangeRed, "TFR", visible,
+            ApplyPolygons(overlay, features, Color.FromArgb(75, Color.OrangeRed), Color.OrangeRed, 3f, "TFR", visible,
                 invokeOnUi);
         }
 
@@ -210,8 +220,8 @@ namespace MissionPlanner.Utilities
                 cancel.ThrowIfCancellationRequested();
 
                 var features = ParseGeoJsonFeatures(json);
-                ApplyPolygons(overlay, features, Color.FromArgb(25, Color.DodgerBlue), Color.SteelBlue, "ASP", visible,
-                    invokeOnUi);
+                ApplyPolygons(overlay, features, Color.FromArgb(55, Color.DodgerBlue), Color.SteelBlue, 2.5f, "ASP",
+                    visible, invokeOnUi);
             }
             catch (Exception ex)
             {
@@ -228,7 +238,7 @@ namespace MissionPlanner.Utilities
         {
             try
             {
-                var url = BuildArcGisQueryUrl(UasFacilityMapUrl, bounds, 2000);
+                var url = BuildArcGisQueryUrl(UasFacilityMapUrl, bounds, MaxArcGisFeaturesForBounds(bounds));
                 var json = await url.GetStringAsync(cancellationToken: cancel).ConfigureAwait(false);
                 cancel.ThrowIfCancellationRequested();
 
@@ -262,21 +272,22 @@ namespace MissionPlanner.Utilities
                         }
 
                         var fill = ceiling <= 0
-                            ? Color.FromArgb(50, Color.Red)
-                            : Color.FromArgb(35, Color.Gold);
+                            ? Color.FromArgb(70, Color.Red)
+                            : Color.FromArgb(55, Color.Gold);
                         var stroke = ceiling <= 0 ? Color.Red : Color.Goldenrod;
 
-                        var poly = new GMapPolygon(feat.Ring, "UAS" + feat.Name)
+                        var poly = new RestrictionGMapPolygon(feat.Ring, "UAS" + feat.Name)
                         {
                             Fill = new SolidBrush(fill),
-                            Stroke = new Pen(stroke, 1),
-                            Tag = feat.ToolTip
+                            Stroke = new Pen(stroke, 2f),
+                            Tag = feat.ToolTip,
+                            IsVisible = true
                         };
                         overlay.Polygons.Add(poly);
                     }
 
                     overlay.IsVisibile = visible;
-                    overlay.ForceUpdate();
+                    SyncOverlayGeometry(overlay);
                 });
 
                 return features.Count;
@@ -371,7 +382,7 @@ namespace MissionPlanner.Utilities
                 log.Warn("DoD UAS restriction fetch failed", ex);
             }
 
-            ApplyPolygons(overlay, merged, Color.FromArgb(35, Color.MediumPurple), Color.Purple, "SUA", visible,
+            ApplyPolygons(overlay, merged, Color.FromArgb(60, Color.MediumPurple), Color.Purple, 2.5f, "SUA", visible,
                 invokeOnUi);
             return merged.Count;
         }
@@ -508,14 +519,56 @@ namespace MissionPlanner.Utilities
         {
             var area = Math.Abs(bounds.WidthLng * bounds.HeightLat);
             if (area <= 0.0001)
-                return 2500;
+                return 3500;
             if (area <= 0.01)
-                return 2000;
+                return 2500;
             if (area <= 0.25)
-                return 1000;
+                return 1500;
             if (area <= 2.0)
-                return 750;
-            return 500;
+                return 1000;
+            return 600;
+        }
+
+        private static int MaxArcGisFeaturesForBounds(RectLatLng bounds)
+        {
+            var area = Math.Abs(bounds.WidthLng * bounds.HeightLat);
+            if (area <= 0.0005)
+                return 5000;
+            if (area <= 0.05)
+                return 3500;
+            return 2000;
+        }
+
+        private static RectLatLng InflateFetchBounds(RectLatLng view)
+        {
+            if (view.IsEmpty)
+                return view;
+
+            var b = view;
+            var padLat = Math.Max(view.HeightLat * 0.45, 0.012);
+            var padLng = Math.Max(view.WidthLng * 0.45, 0.012);
+            b.Inflate(padLat, padLng);
+            return b;
+        }
+
+        private static void SyncOverlayGeometry(GMapOverlay overlay)
+        {
+            if (overlay?.Control == null)
+            {
+                overlay?.ForceUpdate();
+                return;
+            }
+
+            foreach (GMapPolygon poly in overlay.Polygons)
+            {
+                poly.IsVisible = true;
+                overlay.Control.UpdatePolygonLocalPosition(poly);
+            }
+
+            foreach (GMapMarker marker in overlay.Markers)
+                overlay.Control.UpdateMarkerLocalPosition(marker);
+
+            overlay.ForceUpdate();
         }
 
         private static string BuildWfsUrl(string serviceUrl, string typeName, RectLatLng bounds)
@@ -662,6 +715,7 @@ namespace MissionPlanner.Utilities
             List<(string Name, string ToolTip, List<PointLatLng> Ring)> features,
             Color fill,
             Color stroke,
+            float strokeWidth,
             string namePrefix,
             bool visible,
             Action<Action> invokeOnUi)
@@ -669,15 +723,20 @@ namespace MissionPlanner.Utilities
             if (overlay == null)
                 return;
 
+            features = features ?? new List<(string, string, List<PointLatLng>)>();
+
             invokeOnUi(() =>
             {
                 overlay.Polygons.Clear();
                 foreach (var feat in features)
                 {
-                    var poly = new GMapPolygon(feat.Ring, namePrefix + feat.Name)
+                    if (feat.Ring == null || feat.Ring.Count < 3)
+                        continue;
+
+                    var poly = new RestrictionGMapPolygon(feat.Ring, namePrefix + feat.Name)
                     {
                         Fill = new SolidBrush(fill),
-                        Stroke = new Pen(stroke, 2),
+                        Stroke = new Pen(stroke, strokeWidth),
                         Tag = feat.ToolTip,
                         IsVisible = true
                     };
@@ -685,7 +744,10 @@ namespace MissionPlanner.Utilities
                 }
 
                 overlay.IsVisibile = visible;
-                overlay.ForceUpdate();
+                SyncOverlayGeometry(overlay);
+
+                if (features.Count > 0 && overlay.Polygons.Count == 0)
+                    log.Warn($"Restriction overlay {overlay.Id}: parsed {features.Count} features but none had valid rings");
             });
         }
 

@@ -12,6 +12,7 @@ using MissionPlanner.Joystick;
 using MissionPlanner.Log;
 using MissionPlanner.Maps;
 using MissionPlanner.Utilities;
+using MissionPlanner.Utilities.AviationLayers;
 using MissionPlanner.Warnings;
 using System;
 using System.Collections.Generic;
@@ -164,6 +165,11 @@ namespace MissionPlanner.GCSViews
         internal static GMapOverlay uasFacilitypolygons;
         internal static GMapOverlay notamMarkers;
         internal static GMapOverlay specialUsepolygons;
+        internal static GMapOverlay metarMarkers;
+        internal static GMapOverlay sigmetPolygons;
+        internal static GMapOverlay gairmetPolygons;
+        internal static GMapOverlay pirepMarkers;
+        internal static GMapOverlay flightSafetyMarkers;
         internal GMapMarker CurrentGMapMarker;
 
         internal PointLatLng MouseDownStart;
@@ -191,11 +197,36 @@ namespace MissionPlanner.GCSViews
         private CheckBox _chkMapNotams;
         private CheckBox _chkMapSpecialUse;
         private CheckBox _chkMapNoFly;
+        private CheckBox _chkMapMetar;
+        private CheckBox _chkMapSigmet;
+        private CheckBox _chkMapGairmet;
+        private CheckBox _chkMapPirep;
+        private CheckBox _chkMapFlightSafety;
+        private CheckBox _chkMapBriefPanel;
+        private System.Windows.Forms.Label _lblLayerHealth;
         private bool _mapOverlayCheckInternal;
         private MapOverlayController _mapOverlayController;
+        private FlightMapLayerContext _flightMapLayerContext;
+
+        /// <summary>Flight Data map zoom floor (provider MinZoom can raise this).</summary>
+        const int FlightMapMinZoom = 1;
+
+        static int GetFlightMapMaxZoom()
+        {
+            var max = 18;
+            if (Settings.Instance.ContainsKey("flightMapMaxZoom"))
+            {
+                if (!int.TryParse(Settings.Instance["flightMapMaxZoom"], out max))
+                    max = 18;
+            }
+
+            return Math.Min(19, Math.Max(FlightMapMinZoom, max));
+        }
         private Panel _notamBriefHost;
         private Controls.MapNotamBriefingPanel _notamBriefPanel;
         private Controls.PreFlight.PreflightSummaryPanel _preflightSummaryPanel;
+        private Controls.PreFlight.FlightStageTabPanel _flightStagePanel;
+        private TabPage tabFlightStage;
         internal static string LastRestrictionBriefingSummary;
         private DateTime _lastPreflightSummaryRefresh = DateTime.MinValue;
 
@@ -531,6 +562,7 @@ namespace MissionPlanner.GCSViews
             };
 
             SetupMissionChecklistSummary();
+            SetupFlightStageTab();
 
             log.Info("Components Done");
 
@@ -693,9 +725,14 @@ namespace MissionPlanner.GCSViews
             log.Info("Map Setup");
             gMapControl1.CacheLocation = Settings.GetDataDirectory() +
                                          "gmapcache" + Path.DirectorySeparatorChar;
-            gMapControl1.MinZoom = 4;
-            gMapControl1.MaxZoom = 24;
-            gMapControl1.Zoom = 3;
+            gMapControl1.MinZoom = FlightMapMinZoom;
+            gMapControl1.ScaleMode = GMap.NET.WindowsForms.ScaleModes.Integer;
+            SyncMapZoomLimitsToProvider();
+            if (gMapControl1.Zoom < FlightMapMinZoom || gMapControl1.Zoom > GetFlightMapMaxZoom())
+                gMapControl1.Zoom = 10;
+            gMapControl1.FillEmptyTiles = true;
+            gMapControl1.ShowEmptyTileMessages = false;
+            gMapControl1.EmptyTileText = string.Empty;
 
             gMapControl1.OnMapZoomChanged += gMapControl1_OnMapZoomChanged;
 
@@ -707,24 +744,57 @@ namespace MissionPlanner.GCSViews
             gMapControl1.RoutesEnabled = true;
             gMapControl1.PolygonsEnabled = true;
 
-            tfrpolygons = new GMapOverlay("tfrpolygons");
+            tfrpolygons = new RestrictionMapOverlay("tfrpolygons");
             gMapControl1.Overlays.Add(tfrpolygons);
 
-            airspacepolygons = new GMapOverlay("airspacepolygons");
+            airspacepolygons = new RestrictionMapOverlay("airspacepolygons");
             gMapControl1.Overlays.Add(airspacepolygons);
 
-            uasFacilitypolygons = new GMapOverlay("uasfacility");
+            uasFacilitypolygons = new RestrictionMapOverlay("uasfacility");
             gMapControl1.Overlays.Add(uasFacilitypolygons);
 
-            notamMarkers = new GMapOverlay("notammarkers");
+            notamMarkers = new RestrictionMapOverlay("notammarkers");
             gMapControl1.Overlays.Add(notamMarkers);
 
-            specialUsepolygons = new GMapOverlay("specialuse");
+            specialUsepolygons = new RestrictionMapOverlay("specialuse");
             gMapControl1.Overlays.Add(specialUsepolygons);
 
+            metarMarkers = new RestrictionMapOverlay("metar");
+            gMapControl1.Overlays.Add(metarMarkers);
+
+            sigmetPolygons = new RestrictionMapOverlay("sigmet");
+            gMapControl1.Overlays.Add(sigmetPolygons);
+
+            gairmetPolygons = new RestrictionMapOverlay("gairmet");
+            gMapControl1.Overlays.Add(gairmetPolygons);
+
+            pirepMarkers = new RestrictionMapOverlay("pirep");
+            gMapControl1.Overlays.Add(pirepMarkers);
+
+            flightSafetyMarkers = new RestrictionMapOverlay("flightsafety");
+            gMapControl1.Overlays.Add(flightSafetyMarkers);
+
+            var flightMapStack = new FlightMapLayerStack
+            {
+                Tfr = new TfrMapLayer(tfrpolygons),
+                Airspace = new AirspaceMapLayer(airspacepolygons),
+                Uas = new UasFacilityMapLayer(uasFacilitypolygons),
+                Notam = new NotamMapLayer(notamMarkers),
+                SpecialUse = new SpecialUseMapLayer(specialUsepolygons),
+                Metar = new MetarMapLayer(metarMarkers),
+                Sigmet = new SigmetMapLayer(sigmetPolygons),
+                Gairmet = new GairmetMapLayer(gairmetPolygons),
+                Pirep = new PirepMapLayer(pirepMarkers),
+                FlightSafety = new FlightSafetyMapLayer(flightSafetyMarkers)
+            };
+
+            _flightMapLayerContext = CreateFlightMapLayerContext();
+            SyncFlightMapLayerContext();
+
             _mapOverlayController = new MapOverlayController(
-                BuildRestrictionOverlays(),
-                BuildRestrictionRefreshOptions);
+                flightMapStack,
+                _flightMapLayerContext,
+                BuildFlightMapVisibility);
             _mapOverlayController.Attach(gMapControl1);
 
             kmlpolygons = new GMapOverlay("kmlpolygons");
@@ -752,6 +822,8 @@ namespace MissionPlanner.GCSViews
             gMapControl1.Overlays.Add(rallypointoverlay);
 
             gMapControl1.Overlays.Add(poioverlay);
+
+            BringRestrictionOverlaysToFront();
 
             float gspeedMax = Settings.Instance.GetFloat("GspeedMAX");
             if (gspeedMax != 0)
@@ -916,11 +988,118 @@ namespace MissionPlanner.GCSViews
             _preflightSummaryPanel = new Controls.PreFlight.PreflightSummaryPanel
             {
                 Dock = DockStyle.Top,
-                Height = 220
+                Height = 320
             };
+            _preflightSummaryPanel.FlightStageRequested += ShowFlightStageMenu;
+            _preflightSummaryPanel.MissionConfirmRequested += ShowMissionConfirmDialog;
+            _preflightSummaryPanel.AffirmArmRequested += AffirmAllGreenForArm;
             tabMissionChecklist.Controls.Add(_preflightSummaryPanel);
             tabMissionChecklist.Controls.Add(missionChecklistControl);
             missionChecklistControl.Dock = DockStyle.Fill;
+
+            if (Settings.Instance.ContainsKey("preflight_last_stage") &&
+                int.TryParse(Settings.Instance["preflight_last_stage"].ToString(), out var last) &&
+                (last == 2 || last == 3))
+            {
+                FlightPreflightSession.SetStage((FlightOperationStage)last);
+                missionChecklistControl.ApplyStageChecklist(FlightPreflightSession.Stage);
+            }
+        }
+
+        void SetupFlightStageTab()
+        {
+            tabFlightStage = new TabPage
+            {
+                Name = "tabFlightStage",
+                Text = "Flight Stage",
+                UseVisualStyleBackColor = true,
+                BackColor = Color.FromArgb(32, 32, 32)
+            };
+
+            _flightStagePanel = new Controls.PreFlight.FlightStageTabPanel
+            {
+                Dock = DockStyle.Fill
+            };
+            _flightStagePanel.StageSelected += stage =>
+            {
+                missionChecklistControl.ApplyStageChecklist(stage);
+                RefreshPreflightSummaryIfNeeded();
+                _flightStagePanel.RefreshStatus();
+            };
+            _flightStagePanel.AffirmArmRequested += AffirmAllGreenForArm;
+
+            tabFlightStage.Controls.Add(_flightStagePanel);
+
+            // Insert near the front of the actions tab control (before ThemedTabStrip migration).
+            if (tabControlactions != null)
+            {
+                var insertAt = 0;
+                for (var i = 0; i < tabControlactions.TabPages.Count; i++)
+                {
+                    if (tabControlactions.TabPages[i] == tabQuick)
+                    {
+                        insertAt = i + 1;
+                        break;
+                    }
+                }
+
+                tabControlactions.TabPages.Insert(insertAt, tabFlightStage);
+            }
+        }
+
+        void AffirmAllGreenForArm()
+        {
+            if (FlightPreflightSession.Stage == FlightOperationStage.Unselected)
+            {
+                CustomMessageBox.Show("Select Stage 2 or Stage 3 first.", "Affirm for arm");
+                return;
+            }
+
+            missionChecklistControl.AffirmAllManualArmingItems();
+            FlightPreflightSession.AffirmAllGreenForArm();
+            _flightStagePanel?.RefreshStatus();
+            RefreshPreflightSummaryIfNeeded();
+            CustomMessageBox.Show(
+                "All green affirmed.\nGCS arming blockers are bypassed for this session.\nAutopilot PreArm can still refuse arm.",
+                "Affirm for arm");
+        }
+
+        void ShowFlightStageMenu()
+        {
+            using (var dlg = new Controls.PreFlight.FlightStageMenuForm())
+            {
+                if (dlg.ShowDialog(this) != DialogResult.OK)
+                    return;
+            }
+
+            missionChecklistControl.ApplyStageChecklist(FlightPreflightSession.Stage);
+            FlightPreflightSession.ClearMissionConfirmation();
+            _flightStagePanel?.RefreshStatus();
+            RefreshPreflightSummaryIfNeeded();
+        }
+
+        void ShowMissionConfirmDialog()
+        {
+            if (FlightPreflightSession.Stage == FlightOperationStage.Unselected)
+            {
+                CustomMessageBox.Show("Select Stage 2 or Stage 3 first (Flight stage…).", "Mission confirmation");
+                return;
+            }
+
+            var req = FlightPreflightProfiles.GetRequirements(FlightPreflightSession.Stage);
+            using (var dlg = new Controls.PreFlight.MissionFlightConfirmForm(req))
+            {
+                if (dlg.ShowDialog(this) == DialogResult.OK)
+                    RefreshPreflightSummaryIfNeeded();
+            }
+        }
+
+        public void ApplyStartupPreflightSelection()
+        {
+            if (FlightPreflightSession.Stage != FlightOperationStage.Unselected)
+                missionChecklistControl.ApplyStageChecklist(FlightPreflightSession.Stage);
+            _flightStagePanel?.RefreshStatus();
+            RefreshPreflightSummaryIfNeeded();
         }
 
         private void RefreshPreflightSummaryIfNeeded()
@@ -941,12 +1120,13 @@ namespace MissionPlanner.GCSViews
             {
                 Dock = DockStyle.Right,
                 Width = 300,
-                BackColor = Color.FromArgb(240, 240, 240),
+                BackColor = Color.FromArgb(38, 38, 42),
                 Visible = false,
                 Name = "notamBriefHost"
             };
 
             _notamBriefPanel = new Controls.MapNotamBriefingPanel { Dock = DockStyle.Fill };
+            _notamBriefPanel.CloseRequested += () => SetNotamBriefPanelVisible(false);
             _notamBriefPanel.ZoomToItem += item =>
             {
                 if (item.Center.IsEmpty)
@@ -971,14 +1151,89 @@ namespace MissionPlanner.GCSViews
                    MainV2.ShowSpecialUseAirspace || MainV2.ShowAirspace;
         }
 
+        void SetNotamBriefPanelVisible(bool visible)
+        {
+            MainV2.ShowNotamBriefPanel = visible;
+            Settings.Instance["showNotamBriefPanel"] = visible.ToString();
+            if (_chkMapBriefPanel != null)
+            {
+                _mapOverlayCheckInternal = true;
+                try
+                {
+                    _chkMapBriefPanel.Checked = visible;
+                }
+                finally
+                {
+                    _mapOverlayCheckInternal = false;
+                }
+            }
+
+            UpdateNotamBriefingPanelVisibility();
+            SyncFlightMapLayerContext();
+            _mapOverlayController?.ScheduleRestrictionRefresh(forceImmediate: true);
+        }
+
         private void UpdateNotamBriefingPanelVisibility()
         {
             if (_notamBriefHost == null)
                 return;
 
-            _notamBriefHost.Visible = ShouldShowRestrictionBriefing();
+            _notamBriefHost.Visible = MainV2.ShowNotamBriefPanel;
             if (!_notamBriefHost.Visible)
                 _notamBriefPanel?.ClearBriefing();
+        }
+
+        void SyncMapZoomLimitsToProvider()
+        {
+            if (gMapControl1?.MapProvider == null)
+                return;
+
+            var baseProvider = MissionPlanner.Maps.MapProviderWithTileOverlay.Unwrap(gMapControl1.MapProvider);
+            var providerMax = MissionPlanner.Maps.MapProviderWithTileOverlay.CapBaseProviderMaxZoom(baseProvider);
+            var effectiveMax = Math.Min(GetFlightMapMaxZoom(), providerMax);
+            var effectiveMin = Math.Max(FlightMapMinZoom, baseProvider.MinZoom);
+
+            if (gMapControl1.MapProvider is MissionPlanner.Maps.MapProviderWithTileOverlay wrap)
+            {
+                wrap.MaxZoom = effectiveMax;
+                wrap.MinZoom = effectiveMin;
+            }
+
+            gMapControl1.MinZoom = effectiveMin;
+            gMapControl1.MaxZoom = effectiveMax;
+            gMapControl1.ScaleMode = GMap.NET.WindowsForms.ScaleModes.Integer;
+            gMapControl1.FillEmptyTiles = true;
+            gMapControl1.ShowEmptyTileMessages = false;
+            gMapControl1.EmptyTileText = string.Empty;
+
+            if (TRK_zoom != null)
+            {
+                TRK_zoom.Minimum = effectiveMin;
+                TRK_zoom.Maximum = effectiveMax;
+            }
+
+            if (Zoomlevel != null)
+            {
+                Zoomlevel.Minimum = effectiveMin;
+                Zoomlevel.Maximum = effectiveMax;
+                Zoomlevel.DecimalPlaces = 0;
+                Zoomlevel.Increment = 1;
+            }
+
+            if (gMapControl1.Zoom > effectiveMax)
+                gMapControl1.Zoom = effectiveMax;
+            else if (gMapControl1.Zoom < effectiveMin)
+                gMapControl1.Zoom = effectiveMin;
+        }
+
+        static int InferMapProviderMaxZoom(GMap.NET.MapProviders.GMapProvider provider)
+        {
+            return MissionPlanner.Maps.MapProviderWithTileOverlay.CapBaseProviderMaxZoom(provider);
+        }
+
+        public static void SyncFlightMapZoomLimits()
+        {
+            instance?.SyncMapZoomLimitsToProvider();
         }
 
         private void SetupMapOverlayBar()
@@ -986,7 +1241,7 @@ namespace MissionPlanner.GCSViews
             _mapOverlayBar = new Panel
             {
                 Dock = DockStyle.Bottom,
-                Height = 52,
+                Height = 96,
                 BackColor = Color.FromArgb(200, 30, 30, 30),
                 Padding = new Padding(8, 4, 8, 4),
                 Name = "mapOverlayBar"
@@ -1008,6 +1263,21 @@ namespace MissionPlanner.GCSViews
             _chkMapNotams = CreateMapOverlayCheckbox("NOTAMs", MainV2.ShowNotams);
             _chkMapSpecialUse = CreateMapOverlayCheckbox("Special use", MainV2.ShowSpecialUseAirspace);
             _chkMapNoFly = CreateMapOverlayCheckbox("Custom NoFly", MainV2.ShowNoFly);
+            _chkMapMetar = CreateMapOverlayCheckbox("METAR", MainV2.ShowMetar);
+            _chkMapSigmet = CreateMapOverlayCheckbox("SIGMET", MainV2.ShowSigmet);
+            _chkMapGairmet = CreateMapOverlayCheckbox("G-AIRMET", MainV2.ShowGairmet);
+            _chkMapPirep = CreateMapOverlayCheckbox("PIREP", MainV2.ShowPirep);
+            _chkMapFlightSafety = CreateMapOverlayCheckbox("Safety", MainV2.ShowFlightSafety);
+            _chkMapBriefPanel = CreateMapOverlayCheckbox("Briefing panel", MainV2.ShowNotamBriefPanel);
+
+            _lblLayerHealth = new System.Windows.Forms.Label
+            {
+                AutoSize = true,
+                ForeColor = Color.Silver,
+                BackColor = Color.Transparent,
+                Margin = new Padding(8, 4, 0, 0),
+                Text = "Aviation layers idle"
+            };
 
             EventHandler overlayChanged = (s, e) => OnMapOverlayCheckboxesChanged();
             _chkMapWeather.CheckedChanged += overlayChanged;
@@ -1017,6 +1287,12 @@ namespace MissionPlanner.GCSViews
             _chkMapNotams.CheckedChanged += overlayChanged;
             _chkMapSpecialUse.CheckedChanged += overlayChanged;
             _chkMapNoFly.CheckedChanged += overlayChanged;
+            _chkMapMetar.CheckedChanged += overlayChanged;
+            _chkMapSigmet.CheckedChanged += overlayChanged;
+            _chkMapGairmet.CheckedChanged += overlayChanged;
+            _chkMapPirep.CheckedChanged += overlayChanged;
+            _chkMapFlightSafety.CheckedChanged += overlayChanged;
+            _chkMapBriefPanel.CheckedChanged += overlayChanged;
 
             flow.Controls.Add(_chkMapWeather);
             flow.Controls.Add(_chkMapTfr);
@@ -1025,6 +1301,13 @@ namespace MissionPlanner.GCSViews
             flow.Controls.Add(_chkMapNotams);
             flow.Controls.Add(_chkMapSpecialUse);
             flow.Controls.Add(_chkMapNoFly);
+            flow.Controls.Add(_chkMapMetar);
+            flow.Controls.Add(_chkMapSigmet);
+            flow.Controls.Add(_chkMapGairmet);
+            flow.Controls.Add(_chkMapPirep);
+            flow.Controls.Add(_chkMapFlightSafety);
+            flow.Controls.Add(_chkMapBriefPanel);
+            flow.Controls.Add(_lblLayerHealth);
             _mapOverlayBar.Controls.Add(flow);
 
             MapContentPanel.Controls.Add(_mapOverlayBar);
@@ -1056,6 +1339,13 @@ namespace MissionPlanner.GCSViews
             MainV2.ShowNotams = _chkMapNotams.Checked;
             MainV2.ShowSpecialUseAirspace = _chkMapSpecialUse.Checked;
             MainV2.ShowNoFly = _chkMapNoFly.Checked;
+            MainV2.ShowMetar = _chkMapMetar.Checked;
+            MainV2.ShowSigmet = _chkMapSigmet.Checked;
+            MainV2.ShowGairmet = _chkMapGairmet.Checked;
+            MainV2.ShowPirep = _chkMapPirep.Checked;
+            MainV2.ShowFlightSafety = _chkMapFlightSafety.Checked;
+            if (_chkMapBriefPanel.Checked != MainV2.ShowNotamBriefPanel)
+                SetNotamBriefPanelVisible(_chkMapBriefPanel.Checked);
 
             Settings.Instance["showweather"] = MainV2.ShowWeather.ToString();
             Settings.Instance["showtfr"] = MainV2.ShowTFR.ToString();
@@ -1064,6 +1354,11 @@ namespace MissionPlanner.GCSViews
             Settings.Instance["shownotams"] = MainV2.ShowNotams.ToString();
             Settings.Instance["showspecialuse"] = MainV2.ShowSpecialUseAirspace.ToString();
             Settings.Instance["ShowNoFly"] = MainV2.ShowNoFly.ToString();
+            Settings.Instance["showmetar"] = MainV2.ShowMetar.ToString();
+            Settings.Instance["showsigmet"] = MainV2.ShowSigmet.ToString();
+            Settings.Instance["showgairmet"] = MainV2.ShowGairmet.ToString();
+            Settings.Instance["showpirep"] = MainV2.ShowPirep.ToString();
+            Settings.Instance["showflightsafety"] = MainV2.ShowFlightSafety.ToString();
 
             ApplyMapOverlaySettings();
         }
@@ -1083,6 +1378,12 @@ namespace MissionPlanner.GCSViews
                 _chkMapNotams.Checked = MainV2.ShowNotams;
                 _chkMapSpecialUse.Checked = MainV2.ShowSpecialUseAirspace;
                 _chkMapNoFly.Checked = MainV2.ShowNoFly;
+                _chkMapMetar.Checked = MainV2.ShowMetar;
+                _chkMapSigmet.Checked = MainV2.ShowSigmet;
+                _chkMapGairmet.Checked = MainV2.ShowGairmet;
+                _chkMapPirep.Checked = MainV2.ShowPirep;
+                _chkMapFlightSafety.Checked = MainV2.ShowFlightSafety;
+                _chkMapBriefPanel.Checked = MainV2.ShowNotamBriefPanel;
             }
             finally
             {
@@ -1090,34 +1391,53 @@ namespace MissionPlanner.GCSViews
             }
         }
 
-        private FlightRestrictionsOverlay.RefreshOptions BuildRestrictionRefreshOptions()
-        {
-            var showBriefing = ShouldShowRestrictionBriefing();
-            return new FlightRestrictionsOverlay.RefreshOptions
+        private FlightMapVisibility BuildFlightMapVisibility() =>
+            new FlightMapVisibility
             {
-                LoadTfr = MainV2.ShowTFR,
-                LoadAirspace = MainV2.ShowAirspace,
-                LoadUasFacilityMap = MainV2.ShowUasFacilityMap,
-                LoadNotams = MainV2.ShowNotams,
-                LoadSpecialUseAirspace = MainV2.ShowSpecialUseAirspace,
-                LoadBriefing = showBriefing && (MainV2.ShowTFR || MainV2.ShowNotams),
-                BriefingUpdated = showBriefing
-                    ? (Action<List<NotamBriefingItem>>)(list => _notamBriefPanel?.SetBriefingItems(list))
-                    : null,
-                SummaryUpdated = showBriefing
-                    ? (Action<FlightRestrictionsOverlay.RestrictionBriefingSummary>)(s =>
-                    {
+                Tfr = MainV2.ShowTFR,
+                Airspace = MainV2.ShowAirspace,
+                UasFacility = MainV2.ShowUasFacilityMap,
+                Notams = MainV2.ShowNotams,
+                SpecialUse = MainV2.ShowSpecialUseAirspace,
+                Metar = MainV2.ShowMetar,
+                Sigmet = MainV2.ShowSigmet,
+                Gairmet = MainV2.ShowGairmet,
+                Pirep = MainV2.ShowPirep,
+                FlightSafety = MainV2.ShowFlightSafety
+            };
+
+        private FlightMapLayerContext CreateFlightMapLayerContext()
+        {
+            return new FlightMapLayerContext
+            {
+                LoadBriefing = false,
+                BriefingUpdated = null,
+                SummaryUpdated = s =>
+                {
+                    if (MainV2.ShowNotamBriefPanel)
                         _notamBriefPanel?.SetSummary(s);
-                        var parts = new List<string>();
+                    UpdateLayerHealthLabel();
+                    if (!MainV2.ShowNotamBriefPanel)
+                        return;
+                    var parts = new List<string>();
                         if (s.TfrNotamCount > 0)
                             parts.Add($"{s.TfrNotamCount} TFR/NOTAM in view");
                         if (s.UasGridCells > 0)
                             parts.Add($"{s.UasGridCells} LAANC cells");
                         if (s.SpecialUseAreas > 0)
                             parts.Add($"{s.SpecialUseAreas} special-use");
+                        if (s.MetarCount > 0)
+                            parts.Add($"{s.MetarCount} METARs");
+                        if (s.SigmetCount > 0)
+                            parts.Add($"{s.SigmetCount} SIGMETs");
+                        if (s.GairmetCount > 0)
+                            parts.Add($"{s.GairmetCount} G-AIRMETs");
+                        if (s.PirepCount > 0)
+                            parts.Add($"{s.PirepCount} PIREPs");
+                        if (s.FlightSafetyWarnings > 0)
+                            parts.Add($"{s.FlightSafetyWarnings} safety alerts");
                         LastRestrictionBriefingSummary = parts.Count == 0 ? null : string.Join(" · ", parts);
-                    })
-                    : null,
+                    },
                 InvokeOnUi = action =>
                 {
                     if (InvokeRequired)
@@ -1125,38 +1445,92 @@ namespace MissionPlanner.GCSViews
                     else
                         action();
                 },
-                MapInvalidate = () =>
-                {
-                    if (gMapControl1 == null)
-                        return;
-                    gMapControl1.Invalidate();
-                    foreach (var o in new[]
-                             {
-                                 tfrpolygons, airspacepolygons, uasFacilitypolygons, notamMarkers, specialUsepolygons
-                             })
-                    {
-                        o?.ForceUpdate();
-                    }
-                }
+                BringRestrictionOverlaysToFront = BringRestrictionOverlaysToFront,
+                GetMissionPoints = CollectMissionPointsForSafety
             };
         }
 
-        private static FlightRestrictionsOverlay.OverlaySet BuildRestrictionOverlays()
+        void SyncFlightMapLayerContext()
         {
-            return new FlightRestrictionsOverlay.OverlaySet
+            if (_flightMapLayerContext == null)
+                return;
+
+            _flightMapLayerContext.LoadBriefing = MainV2.ShowNotamBriefPanel;
+            _flightMapLayerContext.BriefingUpdated = MainV2.ShowNotamBriefPanel
+                ? (Action<List<NotamBriefingItem>>)(list => _notamBriefPanel?.SetBriefingItems(list))
+                : null;
+        }
+
+        IEnumerable<PointLatLng> CollectMissionPointsForSafety()
+        {
+            var pts = new List<PointLatLng>();
+            if (routes != null)
             {
-                Tfr = tfrpolygons,
-                Airspace = airspacepolygons,
-                UasFacility = uasFacilitypolygons,
-                NotamMarkers = notamMarkers,
-                SpecialUse = specialUsepolygons
-            };
+                foreach (GMapRoute route in routes.Routes)
+                {
+                    if (route?.Points == null)
+                        continue;
+                    pts.AddRange(route.Points);
+                }
+            }
+
+            if (FlightPlanner.instance?.pointlist != null)
+            {
+                foreach (PointLatLngAlt p in FlightPlanner.instance.pointlist)
+                    pts.Add(p);
+            }
+
+            return pts;
+        }
+
+        void UpdateLayerHealthLabel()
+        {
+            if (_lblLayerHealth == null || _mapOverlayController?.Manager == null)
+                return;
+
+            var snaps = _mapOverlayController.Manager.LastSnapshots;
+            var stale = snaps.Where(s => s.Health == LayerHealthState.Error || s.Health == LayerHealthState.Stale)
+                .ToList();
+            if (stale.Count == 0)
+            {
+                var latest = snaps.Where(s => s.FetchedAtUtc.HasValue).OrderByDescending(s => s.FetchedAtUtc)
+                    .FirstOrDefault();
+                _lblLayerHealth.Text = latest?.FetchedAtUtc == null
+                    ? "Aviation layers idle"
+                    : $"Updated {latest.FetchedAtUtc.Value.ToLocalTime():HH:mm:ss} UTC data";
+                _lblLayerHealth.ForeColor = Color.Silver;
+                return;
+            }
+
+            _lblLayerHealth.Text = stale[0].DisplayName + ": " +
+                                   (stale[0].Message ?? stale[0].Health.ToString());
+            _lblLayerHealth.ForeColor = Color.Orange;
+        }
+
+        void BringRestrictionOverlaysToFront()
+        {
+            if (gMapControl1 == null)
+                return;
+
+            foreach (var overlay in new GMapOverlay[]
+                     {
+                         tfrpolygons, airspacepolygons, uasFacilitypolygons, notamMarkers, specialUsepolygons,
+                         metarMarkers, sigmetPolygons, gairmetPolygons, pirepMarkers, flightSafetyMarkers
+                     })
+            {
+                if (overlay == null || !gMapControl1.Overlays.Contains(overlay))
+                    continue;
+
+                gMapControl1.Overlays.Remove(overlay);
+                gMapControl1.Overlays.Add(overlay);
+            }
         }
 
         public void Activate()
         {
             log.Info("Activate Called");
 
+            SyncMapZoomLimitsToProvider();
             OnResize(EventArgs.Empty);
 
             if (CB_tuning.Checked)
@@ -1578,6 +1952,8 @@ namespace MissionPlanner.GCSViews
 
             TabListDisplay.Add(tabMissionChecklist.Name, true);
 
+            TabListDisplay.Add(tabFlightStage.Name, true);
+
             TabListDisplay.Add(tabTuning.Name, MainV2.DisplayConfiguration.displayTuningTab);
 
             TabListDisplay.Add(tabInspector.Name, MainV2.DisplayConfiguration.displayInspectorTab);
@@ -1628,6 +2004,24 @@ namespace MissionPlanner.GCSViews
                 if(!added)
                     log.Debug("not added to tabControlactions " + tabname);
             }
+
+            // Always surface Flight Stage (stage select + debug arm affirm) even if missing from saved layout.
+            EnsureFlightStageTabVisible();
+        }
+
+        void EnsureFlightStageTabVisible()
+        {
+            if (tabFlightStage == null || _themedTabStrip == null)
+                return;
+
+            foreach (TabPage existing in _themedTabStrip.TabPages)
+            {
+                if (existing == tabFlightStage)
+                    return;
+            }
+
+            _themedTabStrip.AddTab(tabFlightStage);
+            log.Debug("ensure tabFlightStage visible");
         }
 
         public void updateDisplayView()
@@ -1926,14 +2320,25 @@ namespace MissionPlanner.GCSViews
                 var isitarmed = MainV2.comPort.MAV.cs.armed;
                 var action = MainV2.comPort.MAV.cs.armed ? "Disarm" : "Arm";
 
-                if (!isitarmed && !PreflightArmGuard.CanArm(missionChecklistControl, out var armBlockReason))
+                if (!isitarmed)
                 {
-                    CustomMessageBox.Show(
-                        string.IsNullOrEmpty(armBlockReason)
-                            ? "Preflight checks must pass before arming."
-                            : armBlockReason,
-                        "Arming blocked");
-                    return;
+                    if (!MissionPlanner.Controls.PreFlight.MissionFlightConfirmForm.PromptIfNeeded(this))
+                    {
+                        CustomMessageBox.Show(
+                            "Complete mission confirmation (PIC/GCO) before arming.",
+                            "Arming blocked");
+                        return;
+                    }
+
+                    if (!PreflightArmGuard.CanArm(missionChecklistControl, out var armBlockReason))
+                    {
+                        CustomMessageBox.Show(
+                            string.IsNullOrEmpty(armBlockReason)
+                                ? "Preflight checks must pass before arming."
+                                : armBlockReason,
+                            "Arming blocked");
+                        return;
+                    }
                 }
 
                 if (isitarmed)
@@ -3918,15 +4323,16 @@ namespace MissionPlanner.GCSViews
             if (!Settings.Instance.ContainsKey("ShowNoFly") || Settings.Instance.GetBoolean("ShowNoFly"))
                 NoFly.NoFly.NoFlyEvent += NoFly_NoFlyEvent;
 
-            TRK_zoom.Minimum = gMapControl1.MapProvider.MinZoom;
-            TRK_zoom.Maximum = 24;
-            TRK_zoom.Value = (float) gMapControl1.Zoom;
+            TRK_zoom.Minimum = gMapControl1.MinZoom;
+            SyncMapZoomLimitsToProvider();
+            TRK_zoom.Value = (float)Math.Round(gMapControl1.Zoom);
 
             gMapControl1.EmptyTileColor = Color.Gray;
 
-            Zoomlevel.Minimum = gMapControl1.MapProvider.MinZoom;
-            Zoomlevel.Maximum = 24;
-            Zoomlevel.Value = Convert.ToDecimal(gMapControl1.Zoom);
+            Zoomlevel.Minimum = gMapControl1.MinZoom;
+            Zoomlevel.Value = Convert.ToDecimal(Math.Round(gMapControl1.Zoom));
+
+            UpdateNotamBriefingPanelVisibility();
 
 
             var mnt_mode_paramnames = new List<string> { "MNT1_DEFLT_MODE", "MNT_DEFLT_MODE", "MNT_MODE" };
@@ -4295,9 +4701,9 @@ namespace MissionPlanner.GCSViews
         {
             try
             {
-                // Exception System.Runtime.InteropServices.SEHException: External component has thrown an exception.
-                TRK_zoom.Value = (float) gMapControl1.Zoom;
-                Zoomlevel.Value = Convert.ToDecimal(gMapControl1.Zoom);
+                SyncMapZoomLimitsToProvider();
+                TRK_zoom.Value = (float)Math.Round(gMapControl1.Zoom);
+                Zoomlevel.Value = Convert.ToDecimal(Math.Round(gMapControl1.Zoom));
             }
             catch
             {
@@ -7187,16 +7593,10 @@ namespace MissionPlanner.GCSViews
         {
             try
             {
-                if (gMapControl1.MaxZoom + 1 == (double) TRK_zoom.Value)
-                {
-                    gMapControl1.Zoom = TRK_zoom.Value - .1;
-                    Zoomlevel.Value = Convert.ToDecimal(TRK_zoom.Value - .1);
-                }
-                else
-                {
-                    gMapControl1.Zoom = TRK_zoom.Value;
-                    Zoomlevel.Value = Convert.ToDecimal(TRK_zoom.Value);
-                }
+                var z = (int)Math.Round(TRK_zoom.Value);
+                z = Math.Max(gMapControl1.MinZoom, Math.Min(gMapControl1.MaxZoom, z));
+                gMapControl1.Zoom = z;
+                Zoomlevel.Value = z;
 
                 UpdateOverlayVisibility();
             }
@@ -7425,8 +7825,10 @@ namespace MissionPlanner.GCSViews
 
         public static void ApplyMapOverlaySettings()
         {
+            instance?.SyncFlightMapLayerContext();
             instance?.UpdateNotamBriefingPanelVisibility();
             instance?._mapOverlayController?.ApplyAllSettings();
+            instance?.SyncMapZoomLimitsToProvider();
             instance?.SyncMapOverlayCheckboxUi();
         }
 
@@ -7520,16 +7922,10 @@ namespace MissionPlanner.GCSViews
         {
             try
             {
-                if (gMapControl1.MaxZoom + 1 == (double) Zoomlevel.Value)
-                {
-                    gMapControl1.Zoom = (double) Zoomlevel.Value - .1;
-                    TRK_zoom.Value = (float)Zoomlevel.Value - (float).1;
-                }
-                else
-                {
-                    gMapControl1.Zoom = (double) Zoomlevel.Value;
-                    TRK_zoom.Value = (float)Zoomlevel.Value;
-                }
+                var z = (int)Math.Round(Zoomlevel.Value);
+                z = Math.Max(gMapControl1.MinZoom, Math.Min(gMapControl1.MaxZoom, z));
+                gMapControl1.Zoom = z;
+                TRK_zoom.Value = z;
             }
             catch
             {

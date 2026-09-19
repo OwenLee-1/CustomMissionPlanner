@@ -277,15 +277,20 @@ namespace MissionPlanner
             if (File.Exists(Settings.GetRunningDirectory() + "logo2.png"))
                 Logo2 = new Bitmap(Settings.GetRunningDirectory() + "logo2.png");
 
-            if (File.Exists(Settings.GetRunningDirectory() + "icon.png"))
-            {
-                // 128*128
-                IconFile = new Bitmap(Settings.GetRunningDirectory() + "icon.png");
-            }
+            // Prefer VFS Purdue artwork for the window/taskbar icon (not legacy mpdesktop).
+            var runDir = Settings.GetRunningDirectory();
+            if (File.Exists(Path.Combine(runDir, "vfs_purdue_logo.png")))
+                IconFile = new Bitmap(Path.Combine(runDir, "vfs_purdue_logo.png"));
+            else if (File.Exists(Path.Combine(runDir, "icon.png")))
+                IconFile = new Bitmap(Path.Combine(runDir, "icon.png"));
             else
-            {
-                IconFile = MissionPlanner.Properties.Resources.mpdesktop.ToBitmap();
-            }
+                IconFile = (Bitmap)Properties.Resources.TD_MP.Clone();
+
+            if (Logo == null)
+                Logo = (Bitmap)Properties.Resources.TD_MP.Clone();
+
+            if (Logo2 == null)
+                Logo2 = (Bitmap)Properties.Resources.TD_MP_light.Clone();
 
             try
             {

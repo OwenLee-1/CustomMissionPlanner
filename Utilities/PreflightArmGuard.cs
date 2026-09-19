@@ -16,6 +16,20 @@ namespace MissionPlanner.Utilities
             reason = null;
             LastBlockReason = null;
 
+            if (MainV2.comPort?.MAV?.cs == null || !MainV2.comPort.MAV.cs.connected)
+            {
+                reason = "Telemetry link is not connected.";
+                LastBlockReason = reason;
+                return false;
+            }
+
+            // Debug / PIC affirm: skip remaining GCS arm blockers for this session.
+            if (FlightPreflightSession.ArmAffirmedOverride)
+            {
+                LastBlockReason = null;
+                return true;
+            }
+
             if (checklist != null && !checklist.ArmingChecksPassed)
             {
                 reason = "Mission checklist incomplete (including PIC/GCO sign-off).";
@@ -23,20 +37,7 @@ namespace MissionPlanner.Utilities
                 return false;
             }
 
-            if (MainV2.comPort?.MAV?.cs == null)
-            {
-                reason = "Vehicle not connected.";
-                LastBlockReason = reason;
-                return false;
-            }
-
             var cs = MainV2.comPort.MAV.cs;
-            if (!cs.connected)
-            {
-                reason = "Telemetry link is not connected.";
-                LastBlockReason = reason;
-                return false;
-            }
 
             if (Settings.Instance.GetBoolean("armguard_require_prearm", true) && !cs.prearmstatus)
             {
@@ -54,6 +55,67 @@ namespace MissionPlanner.Utilities
                     reason = "Active TFR intersects home or mission: " + first.Label;
                     LastBlockReason = reason;
                     return false;
+                }
+            }
+
+            if (Settings.Instance.GetBoolean("armguard_require_flight_stage", true) &&
+                FlightPreflightSession.Stage == FlightOperationStage.Unselected)
+            {
+                reason = "Select Stage 2 or Stage 3 (Flight Stage tab).";
+                LastBlockReason = reason;
+                return false;
+            }
+
+            if (FlightPreflightSession.Stage != FlightOperationStage.Unselected)
+            {
+                var req = FlightPreflightProfiles.GetRequirements(FlightPreflightSession.Stage);
+
+                if (Settings.Instance.GetBoolean("armguard_require_sensors", true))
+                {
+                    var sensors = PreflightTelemetryChecks.EvaluateSensors(cs, req);
+                    if (!sensors.Ok)
+                    {
+                        reason = "Sensor check failed: " + sensors.Summary;
+                        LastBlockReason = reason;
+                        return false;
+                    }
+                }
+
+                if (Settings.Instance.GetBoolean("armguard_require_radio", true))
+                {
+                    var radio = PreflightTelemetryChecks.EvaluateRadio(cs, req);
+                    if (!radio.Ok)
+                    {
+                        reason = "Radio / link check failed: " + radio.Summary;
+                        LastBlockReason = reason;
+                        return false;
+                    }
+                }
+
+                if (Settings.Instance.GetBoolean("armguard_require_mission_confirm", true) && req.RequireMissionConfirm)
+                {
+                    var fp = PreflightTelemetryChecks.BuildMissionFingerprint();
+                    if (!FlightPreflightSession.IsMissionConfirmationCurrent(fp, req.RequirePicSignOff,
+                            req.RequireGcoSignOff))
+                    {
+                        reason = "Mission summary not confirmed by PIC/GCO for the current plan.";
+                        LastBlockReason = reason;
+                        return false;
+                    }
+                }
+
+                if (Settings.Instance.GetBoolean("armguard_block_adsb_traffic", false) &&
+                    req.RequireAdsbTrafficReview)
+                {
+                    var homePt = cs.Base != PointLatLngAlt.Zero ? cs.Base : (PointLatLngAlt)cs.Location;
+                    var adsb = PreflightTelemetryChecks.EvaluateAdsbTraffic(homePt, req,
+                        MainV2.instance?.EnableADSB == true);
+                    if (!adsb.Ok)
+                    {
+                        reason = "ADS-B traffic review required: " + adsb.Summary;
+                        LastBlockReason = reason;
+                        return false;
+                    }
                 }
             }
 
