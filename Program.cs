@@ -783,7 +783,8 @@ namespace MissionPlanner
             if (MainV2.instance != null && MainV2.instance.IsDisposed)
                 return;
 
-            MissionPlanner.Utilities.Tracking.AddException(ex);
+            if (ErrorReporter.EnableGoogleAnalytics)
+                MissionPlanner.Utilities.Tracking.AddException(ex);
 
             log.Debug(ex.ToString());
 
@@ -847,83 +848,78 @@ namespace MissionPlanner
 
             log.Info("Th Name " + Thread?.Name);
 
+            string processinfo = "";
+            try
+            {
+                var result = new Dictionary<int, string[]>();
+                var pid = Process.GetCurrentProcess().Id;
+                using (var dataTarget = DataTarget.AttachToProcess(pid, 5000, AttachFlag.Passive))
+                {
+                    ClrInfo runtimeInfo = dataTarget.ClrVersions[0];
+                    var runtime = runtimeInfo.CreateRuntime();
+                    foreach (var t in runtime.Threads)
+                    {
+                        result.Add(
+                            t.ManagedThreadId,
+                            t.StackTrace.Select(f =>
+                            {
+                                if (f.Method != null)
+                                    return f.Method.Type.Name + "." + f.Method.Name;
+                                return null;
+                            }).ToArray()
+                        );
+                    }
+                }
+
+                processinfo = result.ToJSON(Formatting.Indented);
+            }
+            catch
+            {
+            }
+
+            string message = "";
+            var reportPath = ErrorReporter.SaveReport(ex, null, processinfo);
+
             var dr =
-                CustomMessageBox.Show("An error has occurred\n" + ex.ToString() + "\n\nReport this Error???",
-                    "Send Error", MessageBoxButtons.YesNo);
-            if ((int) DialogResult.Yes == dr)
+                CustomMessageBox.Show(
+                    "An error has occurred.\n\n" + ex.Message +
+                    "\n\nFull report saved to:\n" + reportPath +
+                    "\n\nSend this report to your team? (Set ErrorReportSubmitUrl in app.config)",
+                    "Error Report",
+                    MessageBoxButtons.YesNo);
+            if ((int)DialogResult.Yes != dr)
+                return;
+
+            try
             {
                 try
                 {
-                    string data = "";
-                    foreach (System.Collections.DictionaryEntry de in ex.Data)
-                        data += String.Format("-> {0}: {1}", de.Key, de.Value);
-
-                    string message = "";
-
-                    try
-                    {
-                        Controls.InputBox.Show("Message", "Please enter a message about this error if you can.",
-                            ref message);
-                    }
-                    catch
-                    {
-                    }
-
-                    string processinfo = "";
-
-                    try
-                    {
-                        var result = new Dictionary<int, string[]>();
-
-                        var pid = Process.GetCurrentProcess().Id;
-
-                        using (var dataTarget = DataTarget.AttachToProcess(pid, 5000, AttachFlag.Passive))
-                        {
-                            ClrInfo runtimeInfo = dataTarget.ClrVersions[0];
-                            var runtime = runtimeInfo.CreateRuntime();
-
-                            foreach (var t in runtime.Threads)
-                            {
-                                result.Add(
-                                    t.ManagedThreadId,
-                                    t.StackTrace.Select(f =>
-                                    {
-                                        if (f.Method != null)
-                                        {
-                                            return f.Method.Type.Name + "." + f.Method.Name;
-                                        }
-
-                                        return null;
-                                    }).ToArray()
-                                );
-                            }
-                        }
-
-                        processinfo =
-                            result.ToJSON(Formatting.Indented); //;Process.GetCurrentProcess().Modules.ToJSON();
-                    }
-                    catch
-                    {
-
-                    }
-
-                    string postData = "message=" + Environment.OSVersion.VersionString + " " +
-                                      System.Reflection.Assembly.GetExecutingAssembly().GetName().Version.ToString()
-                                      + " " + Application.ProductVersion
-                                      + "\nException " + ex.ToString().Replace('&', ' ').Replace('=', ' ')
-                                      + "\nStack: " + ex.StackTrace.ToString().Replace('&', ' ').Replace('=', ' ')
-                                      + "\nTargetSite " + ex.TargetSite + " " + ex.TargetSite.DeclaringType
-                                      + "\ndata " + data
-                                      + "\nmessage " + message.Replace('&', ' ').Replace('=', ' ')
-                                      + "\n\n" + processinfo;
-                    _ = Download.PostAsync("http://vps.oborne.me/mail.php", postData).ConfigureAwait(false);
+                    Controls.InputBox.Show("Message", "Optional: what were you doing when this happened?",
+                        ref message);
                 }
-                catch (Exception exp)
+                catch
                 {
-                    Console.WriteLine(exp.ToString());
-                    log.Error(exp);
-                    CustomMessageBox.Show("Could not send report! Typically due to lack of internet connection.");
                 }
+
+                if (!string.IsNullOrWhiteSpace(message))
+                    reportPath = ErrorReporter.SaveReport(ex, message, processinfo);
+
+                var postData = ErrorReporter.BuildReportText(ex, message, processinfo);
+                if (ErrorReporter.TrySubmitRemote(postData, out var submitError))
+                {
+                    CustomMessageBox.Show("Report submitted.\nA copy remains at:\n" + reportPath);
+                }
+                else
+                {
+                    CustomMessageBox.Show(
+                        "Could not submit remotely (" + submitError + ").\n\nUse the saved file:\n" + reportPath);
+                }
+            }
+            catch (Exception exp)
+            {
+                Console.WriteLine(exp.ToString());
+                log.Error(exp);
+                CustomMessageBox.Show("Could not submit report. See:\n" + reportPath);
             }
         }
 
